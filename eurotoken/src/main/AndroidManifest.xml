@@ -1,8 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.NFC" />
+
+    <!-- NFC hardware requirement -> TRUE -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="true" />
+
     <application>
-        <activity android:name=".EuroTokenMainActivity"></activity>
+        <activity
+            android:name=".EuroTokenMainActivity"
+            android:exported="true">
+
+            <!-- NFC intent filters -->
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.nfc.action.TAG_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <meta-data
+                    android:name="android.nfc.action.TECH_DISCOVERED"
+                    android:resource="@xml/nfc_tech_filter" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
