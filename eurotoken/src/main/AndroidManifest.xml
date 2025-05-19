@@ -11,8 +11,8 @@
     <application>
         <activity
             android:name=".EuroTokenMainActivity"
-            android:exported="true">
-
+            android:exported="true"
+            android:launchMode="singleTop">
             <!-- NFC intent filters -->
             <intent-filter>
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
