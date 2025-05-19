@@ -11,6 +11,8 @@ import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
 import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
+import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
+import nl.tudelft.trustchain.common.bloomFilter.HashFunctions
 import nl.tudelft.trustchain.common.eurotoken.GatewayStore
 import nl.tudelft.trustchain.common.eurotoken.Transaction
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
@@ -68,6 +70,19 @@ class EuroTokenCommunity(
      * @param packet : the corresponding packet that contains the right payload.
      */
     private fun onLastAddressPacket(packet: Packet) {
+        val (_, payload) =
+            packet.getDecryptedAuthPayload(
+                TransactionsPayload.Deserializer,
+                myPeer.key as PrivateKey
+            )
+
+        val addresses: List<ByteArray> = String(payload.data).split(",").map { it.toByteArray() }
+        for (i in addresses.indices) {
+            myTrustStore.incrementTrust(addresses[i])
+        }
+    }
+
+    private fun onLastAddressPacketWithBloom(packet: Packet) {
         val (_, payload) =
             packet.getDecryptedAuthPayload(
                 TransactionsPayload.Deserializer,
@@ -177,7 +192,7 @@ class EuroTokenCommunity(
      */
     fun sendAddressesOfLastTransactions(
         peer: Peer,
-        num: Int = 50
+        num: Int = 50,
     ) {
         val pref = myContext.getSharedPreferences(EUROTOKEN_SHARED_PREF_NAME, Context.MODE_PRIVATE)
         val demoModeEnabled = pref.getBoolean(DEMO_MODE_ENABLED, false)
@@ -196,6 +211,64 @@ class EuroTokenCommunity(
                 }
             )
         }
+
+        val payload = TransactionsPayload(EVAId.EVA_LAST_ADDRESSES, addresses.joinToString(separator = ",").toByteArray())
+
+        val packet =
+            serializePacket(
+                MessageId.ATTACHMENT,
+                payload,
+                encrypt = true,
+                recipient = peer
+            )
+
+        // Send the list of addresses to the peer using EVA
+        if (evaProtocolEnabled) {
+            evaSendBinary(
+                peer,
+                EVAId.EVA_LAST_ADDRESSES,
+                payload.id,
+                packet
+            )
+        } else {
+            send(peer, packet)
+        }
+    }
+
+    fun sendAddressesOfLastTransactionsWithBloom(
+        peer: Peer,
+        num: Int = 50,
+    ) {
+        val pref = myContext.getSharedPreferences(EUROTOKEN_SHARED_PREF_NAME, Context.MODE_PRIVATE)
+        val demoModeEnabled = pref.getBoolean(DEMO_MODE_ENABLED, false)
+
+        val addresses: ArrayList<String> = ArrayList()
+        // Add own public key to list of addresses.
+        addresses.add(myPeer.publicKey.keyToBin().toHex())
+        if (demoModeEnabled) {
+            // Generate [num] addresses if in demo mode
+            addresses.addAll(generatePublicKeys(num))
+        } else {
+            // Get all addresses of the last [num] incoming transactions
+            addresses.addAll(
+                transactionRepository.getTransactions(num).map { transaction: Transaction ->
+                    transaction.sender.toString()
+                }
+            )
+        }
+
+        // Generate Bloom Filter
+        val bf = BloomFilter(capacity = addresses.size, errorRate = 0.01f).apply {
+            addresses.forEach { addr ->
+                val hash = HashFunctions.hashString(addr)
+                this.add(hash)
+            }
+        }
+
+        // Serialize bitset → ByteArray
+        val phase1Start = System.nanoTime()
+        val bfBytes = bf.toByteArray()   // you need a helper to turn the ULongArray into bytes
+        val phase1End = System.nanoTime()
 
         val payload = TransactionsPayload(EVAId.EVA_LAST_ADDRESSES, addresses.joinToString(separator = ",").toByteArray())
 
