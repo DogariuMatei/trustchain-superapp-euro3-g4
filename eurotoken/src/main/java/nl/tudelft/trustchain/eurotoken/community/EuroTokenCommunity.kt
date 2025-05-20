@@ -16,6 +16,7 @@ import nl.tudelft.trustchain.common.eurotoken.Transaction
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME
+import nl.tudelft.trustchain.eurotoken.db.CustomBloomFilter
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
 import nl.tudelft.trustchain.eurotoken.ui.settings.DefaultGateway
 
@@ -37,6 +38,9 @@ class EuroTokenCommunity(
      * The context used to access the shared preferences.
      */
     private var myContext: Context
+
+    val tokenIds: MutableList<String> = mutableListOf()
+    val customBloomFilter: CustomBloomFilter = CustomBloomFilter()
 
     init {
         messageHandlers[MessageId.ROLLBACK_REQUEST] = ::onRollbackRequestPacket
@@ -75,6 +79,21 @@ class EuroTokenCommunity(
             )
 
         val addresses: List<ByteArray> = String(payload.data).split(",").map { it.toByteArray() }
+        val tokenId: String = payload.tokenid
+        val filterBytes: ByteArray = payload.filter
+        val receivedFilter = CustomBloomFilter()
+        receivedFilter.loadFromByteArray(filterBytes)
+
+        if (!customBloomFilter.contain(tokenId)) {
+            customBloomFilter.add(tokenId)
+            tokenIds.add(tokenId)
+            customBloomFilter.mergeFrom(receivedFilter)
+        } else {
+            // detected fraud
+            throw RuntimeException("Fraud detected: TokenID already exists in Bloom filter!")
+
+        }
+
         for (i in addresses.indices) {
             myTrustStore.incrementTrust(addresses[i])
         }
@@ -152,6 +171,13 @@ class EuroTokenCommunity(
         return key.toHex()
     }
 
+    private fun generateTokenId(): String {
+        val random = Random.Default
+        val bytes = ByteArray(42)
+        random.nextBytes(bytes)
+        return bytes.toHex()
+    }
+
     /**
      * Generate [numberOfKeys] public keys based on the [seed].
      * @param numberOfKeys : the number of keys to generate.
@@ -197,7 +223,24 @@ class EuroTokenCommunity(
             )
         }
 
-        val payload = TransactionsPayload(EVAId.EVA_LAST_ADDRESSES, addresses.joinToString(separator = ",").toByteArray())
+        val tokenId = if (demoModeEnabled) {
+            "ghananananananananananna"
+        } else {
+            generateTokenId()
+        }
+
+        customBloomFilter.add(tokenId)
+        tokenIds.add(tokenId)
+
+        val addressBytes = addresses.joinToString(separator = ",").toByteArray()
+        val filterBytes = customBloomFilter.toByteArray()
+
+        val payload = TransactionsPayload(
+            id = EVAId.EVA_LAST_ADDRESSES,
+            data = addressBytes,
+            filter = filterBytes,
+            tokenid = tokenId
+        )
 
         val packet =
             serializePacket(

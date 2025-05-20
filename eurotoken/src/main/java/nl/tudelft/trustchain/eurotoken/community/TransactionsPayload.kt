@@ -13,10 +13,15 @@ import nl.tudelft.ipv8.messaging.serializeVarLen
  */
 class TransactionsPayload(
     val id: String,
-    val data: ByteArray
+    val data: ByteArray,
+    val filter: ByteArray,
+    val tokenid: String
 ) : Serializable {
     override fun serialize(): ByteArray {
-        return serializeVarLen(id.toByteArray()) + serializeVarLen(data)
+        return serializeVarLen(id.toByteArray()) +
+            serializeVarLen(data) +
+            serializeVarLen(filter) +
+            serializeVarLen(tokenid.toByteArray())
     }
 
     companion object Deserializer : Deserializable<TransactionsPayload> {
@@ -25,14 +30,20 @@ class TransactionsPayload(
             offset: Int
         ): Pair<TransactionsPayload, Int> {
             var localOffset = offset
-            val (id, idSize) = deserializeVarLen(buffer, localOffset)
+            val (idBytes, idSize) = deserializeVarLen(buffer, localOffset)
             localOffset += idSize
             val (data, dataSize) = deserializeVarLen(buffer, localOffset)
             localOffset += dataSize
+            val (filter, filterSize) = deserializeVarLen(buffer, localOffset)
+            localOffset += filterSize
+            val (tokenidBytes, tokenidSize) = deserializeVarLen(buffer, localOffset)
+            localOffset += tokenidSize
             return Pair(
                 TransactionsPayload(
-                    id.toString(Charsets.UTF_8),
-                    data
+                    idBytes.toString(Charsets.UTF_8),
+                    data,
+                    filter,
+                    tokenidBytes.toString(Charsets.UTF_8)
                 ),
                 localOffset - offset
             )

@@ -15,7 +15,7 @@ import java.util.BitSet
     Receiver checks for fraud and processes transaction and merges bloom filter and updates trust
     Sender updates trust and merges bloom filter as well
  */
-class BloomFilter(
+class CustomBloomFilter(
     private val size: Int = 1024,
     private val hashFunctions: Int = 4,
 ) {
@@ -43,7 +43,7 @@ class BloomFilter(
     /**
      * Update local bloom filter with new information
      */
-    fun mergeFrom(other: BloomFilter) {
+    fun mergeFrom(other: CustomBloomFilter) {
         this.bitArray.or(other.bitArray)
     }
 
