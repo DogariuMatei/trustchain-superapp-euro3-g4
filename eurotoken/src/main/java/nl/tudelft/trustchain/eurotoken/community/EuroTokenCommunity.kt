@@ -1,6 +1,10 @@
 package nl.tudelft.trustchain.eurotoken.community
 
 import android.content.Context
+import android.app.Activity
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import kotlin.random.Random
 import nl.tudelft.ipv8.Community
 import nl.tudelft.ipv8.IPv4Address
@@ -18,6 +22,7 @@ import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity.EurotokenPreference
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
 import nl.tudelft.trustchain.eurotoken.ui.settings.DefaultGateway
+import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 
 class EuroTokenCommunity(
     store: GatewayStore,
@@ -41,6 +46,8 @@ class EuroTokenCommunity(
     init {
         messageHandlers[MessageId.ROLLBACK_REQUEST] = ::onRollbackRequestPacket
         messageHandlers[MessageId.ATTACHMENT] = ::onLastAddressPacket
+        messageHandlers[MessageId.SIMULATED_NFC_DATA] = ::onSimulatedNFCData
+
         if (store.getPreferred().isEmpty()) {
             DefaultGateway.addGateway(store)
         }
@@ -58,6 +65,75 @@ class EuroTokenCommunity(
         val (peer, payload) = packet.getAuthPayload(RollbackRequestPayload.Deserializer)
         onRollbackRequest(peer, payload)
     }
+
+
+    // NFC SIMULATION STUFF:
+
+    /**
+     * Sends simulated NFC data to a peer over the network
+     */
+    fun sendSimulatedNFCData(jsonData: String, peerPublicKey: String): Boolean {
+        val peer = getPeerByPublicKeyHex(peerPublicKey) ?: return false
+
+        Log.d("EuroTokenCommunity", "Sending simulated NFC data to peer: ${peer.publicKey.keyToHash().toHex()}")
+
+        val payload = StringPayload(jsonData)
+        val packet = serializePacket(MessageId.SIMULATED_NFC_DATA, payload)
+
+        send(peer, packet)
+        return true
+    }
+
+
+    private fun onSimulatedNFCData(packet: Packet) {
+        try {
+            Log.d("EuroTokenCommunity", "⭐ RECEIVED NFC DATA PACKET from ${packet.source}")
+
+            val (peer, payload) = packet.getAuthPayload(StringPayload.Deserializer)
+            val jsonData = payload.message
+
+            Log.d("EuroTokenCommunity", "📱 Extracted NFC payload: $jsonData")
+
+
+            // Log the activity context state
+            val activityContext = myContext
+            Log.d("EuroTokenCommunity", "Activity context: ${activityContext?.javaClass?.simpleName}, isFinishing: ${(activityContext as? Activity)?.isFinishing}")
+
+            if (activityContext is Activity) {
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        if (activityContext is EuroTokenMainActivity) {
+                            Log.d("EuroTokenCommunity", "🟢 Forwarding to EuroTokenMainActivity")
+                            activityContext.handleSimulatedNFCData(jsonData)
+                        } else {
+                            Log.e("EuroTokenCommunity", "❌ Context is not EuroTokenMainActivity: ${activityContext.javaClass.simpleName}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("EuroTokenCommunity", "❌ Error forwarding to activity: ${e.message}", e)
+                    }
+                }
+            } else {
+                Log.e("EuroTokenCommunity", "❌ Context is not an Activity: ${myContext?.javaClass?.simpleName}")
+            }
+        } catch (e: Exception) {
+            Log.e("EuroTokenCommunity", "❌ Error processing NFC data: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Helper method to find peer by hex public key
+     */
+    private fun getPeerByPublicKeyHex(publicKeyHex: String): Peer? {
+        try {
+            val publicKeyBin = publicKeyHex.hexToBytes()
+            return getPeers().find { it.publicKey.keyToBin().contentEquals(publicKeyBin) }
+        } catch (e: Exception) {
+            Log.e("EuroTokenCommunity", "Error finding peer by key: ${e.message}", e)
+            return null
+        }
+    }
+
+    // END NFC SIMULATION STUFF!!!
 
     /**
      * Called upon receiving MessageId.ATTACHMENT packet.
@@ -127,6 +203,7 @@ class EuroTokenCommunity(
         const val GATEWAY_CONNECT = 1
         const val ROLLBACK_REQUEST = 1
         const val ATTACHMENT = 4
+        const val SIMULATED_NFC_DATA = 80
     }
 
     class Factory(
