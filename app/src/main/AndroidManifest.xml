@@ -39,6 +39,9 @@
 
     <!-- NFC -->
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:minSdkVersion="32" android:name="android.permission.NEARBY_WIFI_DEVICES" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 
     <application
         android:name="nl.tudelft.trustchain.app.TrustChainApplication"

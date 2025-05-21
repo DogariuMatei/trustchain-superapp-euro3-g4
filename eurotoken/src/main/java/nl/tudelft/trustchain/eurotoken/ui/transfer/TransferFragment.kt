@@ -196,6 +196,14 @@ class TransferFragment : EurotokenBaseFragment(R.layout.fragment_transfer_euro) 
 //            transportSheet.arguments = bundle
             transportSheet.show(childFragmentManager, "TransportChoiceSend")
         }
+
+        binding.btnSyncHistory.setOnClickListener {
+//            val navigationArgs = bundleOf("transaction_args" to argsForNextFragment)
+            findNavController().navigate(
+                R.id.syncHistoryFragment,
+//                navigationArgs
+            )
+        }
     }
 
     /**

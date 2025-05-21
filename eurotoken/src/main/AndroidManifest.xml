@@ -39,6 +39,9 @@
             android:name=".ui.NfcReaderActivity"
             android:exported="false"
             android:label="NFC Reader"> </activity>
+        <activity
+                android:name=".ui.transfer.MainActivity"
+                android:exported="false" />
         
     </application>
 

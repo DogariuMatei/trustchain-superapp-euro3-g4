@@ -42,6 +42,9 @@
         <action
             android:id="@+id/action_transferFragment_to_requestMoneyFragment"
             app:destination="@id/requestMoneyFragment" />
+         <action
+             android:id="@+id/action_transferFragment_to_syncHistoryFragment"
+             app:destination="@id/syncHistoryFragment" />
     </fragment>
 
     <fragment
@@ -68,6 +71,17 @@
             app:destination="@id/transactionsFragment" />
         <argument
             android:name="transaction_args" app:argType="nl.tudelft.trustchain.eurotoken.common.TransactionArgs" />
+    </fragment>
+
+    <fragment
+            android:id="@+id/syncHistoryFragment"
+            android:name="nl.tudelft.trustchain.eurotoken.ui.transfer.SyncHistoryFragment"
+            android:label="Sync History"
+            tools:layout="@layout/fragment_sync_history"> <action
+            android:id="@+id/action_syncHistoryFragment_to_transactionsFragment"
+            app:destination="@id/transactionsFragment" />
+<!--        <argument-->
+<!--                android:name="transaction_args" app:argType="nl.tudelft.trustchain.eurotoken.common.TransactionArgs" />-->
     </fragment>
 
     <fragment
