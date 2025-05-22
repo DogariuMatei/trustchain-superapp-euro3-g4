@@ -1,15 +1,18 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.annotation.SuppressLint
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.navigation.fragment.findNavController
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentRequestMoneyBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_money) {
     private val binding by viewBinding(FragmentRequestMoneyBinding::bind)
 

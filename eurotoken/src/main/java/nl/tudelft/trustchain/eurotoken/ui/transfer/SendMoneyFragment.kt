@@ -1,9 +1,11 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.navigation.fragment.findNavController
 import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
@@ -18,6 +20,7 @@ import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money) {
     private var addContact = false
 
