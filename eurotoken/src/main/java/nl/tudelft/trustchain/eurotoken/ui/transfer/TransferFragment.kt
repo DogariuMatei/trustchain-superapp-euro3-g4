@@ -3,6 +3,7 @@ package nl.tudelft.trustchain.eurotoken.ui.transfer
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -11,6 +12,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import kotlinx.coroutines.delay
@@ -28,6 +30,8 @@ import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONException
 import org.json.JSONObject
 
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_euro) {
     private val binding by viewBinding(FragmentTransferEuroBinding::bind)
 
@@ -410,18 +414,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     override fun onNFCOperationCancelled() {
         super.onNFCOperationCancelled()
         deactivateNFCReceive()
-    }
-
-    override fun onNFCRetryRequested() {
-        super.onNFCRetryRequested()
-        when (currentPhase) {
-            TransactionPhase.WAITING_PHASE1 -> activatePhase1Receive()
-            TransactionPhase.WAITING_PHASE2 -> {
-                currentPhase = TransactionPhase.WAITING_PHASE2
-                activateNFCReceive("payment_confirmation", 60)
-            }
-            else -> { /* Do nothing */ }
-        }
     }
 
     override fun onNFCTimeout() {

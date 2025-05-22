@@ -1,17 +1,16 @@
 package nl.tudelft.trustchain.eurotoken.ui
 
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.LayoutRes
+import androidx.annotation.RequiresApi
 import nl.tudelft.trustchain.common.util.NFCUtils
 import nl.tudelft.trustchain.eurotoken.ui.components.NFCActivationDialog
 
-/**
- * Enhanced base fragment that handles NFC operations for EuroToken transfers
- * with improved dialog management and state handling
- */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : EurotokenBaseFragment(contentLayoutId) {
 
     protected val nfcUtils by lazy { NFCUtils(requireContext()) }
@@ -21,13 +20,10 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     private var nfcTimeoutHandler: Handler = Handler(Looper.getMainLooper())
     private var nfcTimeoutRunnable: Runnable? = null
 
-    // NFC State Management
+    // Simple NFC State Management
     enum class NFCState {
         IDLE,
-        WAITING_TO_SEND,
-        WAITING_TO_RECEIVE,
-        SENDING,
-        RECEIVING,
+        WAITING,
         SUCCESS,
         ERROR
     }
@@ -57,10 +53,10 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Handle incoming NFC data with enhanced error handling
+     * Handle incoming NFC data
      */
     fun handleIncomingNFCIntent(intent: Intent) {
-        updateNFCState(NFCState.RECEIVING)
+        updateNFCState(NFCState.WAITING)
 
         val jsonData = nfcUtils.processIncomingNFCIntent(intent)
         if (jsonData != null) {
@@ -72,25 +68,16 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Show NFC activation dialog with proper state management
+     * Show simple NFC dialog
      */
-    protected fun showNFCDialog(
-        dialogType: NFCActivationDialog.NFCDialogType,
-        amount: String = "",
-        recipientName: String = "",
-        timeoutSeconds: Int = 30
-    ) {
+    protected fun showNFCDialog(message: String, timeoutSeconds: Int = 30) {
         dismissNFCDialog() // Dismiss any existing dialog
 
-        nfcDialog = NFCActivationDialog.newInstance(dialogType, amount, recipientName)
+        nfcDialog = NFCActivationDialog.newInstance(message)
         nfcDialog?.setListener(object : NFCActivationDialog.NFCDialogListener {
             override fun onCancel() {
                 updateNFCState(NFCState.IDLE)
                 onNFCOperationCancelled()
-            }
-
-            override fun onRetry() {
-                onNFCRetryRequested()
             }
         })
 
@@ -103,10 +90,10 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Update the current NFC dialog state
+     * Update dialog message
      */
-    protected fun updateNFCDialogState(newDialogType: NFCActivationDialog.NFCDialogType) {
-        nfcDialog?.updateDialogType(newDialogType)
+    protected fun updateNFCDialogMessage(newMessage: String) {
+        nfcDialog?.updateMessage(newMessage)
     }
 
     /**
@@ -119,36 +106,23 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Update the current NFC state and optionally update dialog
+     * Update the current NFC state
      */
     protected fun updateNFCState(newState: NFCState) {
         currentNFCState = newState
 
-        val dialogType = when (newState) {
-            NFCState.WAITING_TO_SEND -> NFCActivationDialog.NFCDialogType.WAITING_TO_SEND
-            NFCState.WAITING_TO_RECEIVE -> NFCActivationDialog.NFCDialogType.WAITING_TO_RECEIVE
-            NFCState.SENDING -> NFCActivationDialog.NFCDialogType.SENDING
-            NFCState.RECEIVING -> NFCActivationDialog.NFCDialogType.RECEIVING
-            NFCState.SUCCESS -> NFCActivationDialog.NFCDialogType.SUCCESS
-            NFCState.ERROR -> NFCActivationDialog.NFCDialogType.ERROR
-            NFCState.IDLE -> {
-                dismissNFCDialog()
-                return
-            }
+        when (newState) {
+            NFCState.WAITING -> updateNFCDialogMessage("Hold phones together...")
+            NFCState.SUCCESS -> updateNFCDialogMessage("Success!")
+            NFCState.ERROR -> updateNFCDialogMessage("Error occurred. Please try again.")
+            NFCState.IDLE -> dismissNFCDialog()
         }
-
-        updateNFCDialogState(dialogType)
     }
 
     /**
-     * Write data to NFC tag with enhanced dialog management
+     * Write data to NFC tag
      */
-    protected fun writeToNFC(
-        jsonData: String,
-        amount: String = "",
-        recipientName: String = "",
-        onResult: (Boolean) -> Unit
-    ) {
+    protected fun writeToNFC(jsonData: String, onResult: (Boolean) -> Unit) {
         if (!nfcUtils.isNFCAvailable()) {
             onResult(false)
             showNFCNotAvailableMessage()
@@ -156,12 +130,8 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
         }
 
         // Show waiting dialog
-        showNFCDialog(
-            NFCActivationDialog.NFCDialogType.WAITING_TO_SEND,
-            amount,
-            recipientName
-        )
-        updateNFCState(NFCState.WAITING_TO_SEND)
+        showNFCDialog("Hold phones together to send data...")
+        updateNFCState(NFCState.WAITING)
 
         // Setup NFC write through activity
         requireActivity().let { activity ->
@@ -190,20 +160,14 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     /**
      * Activate NFC for receiving data
      */
-    protected fun activateNFCReceive(
-        expectedDataType: String = "",
-        timeoutSeconds: Int = 30
-    ) {
+    protected fun activateNFCReceive(expectedDataType: String = "", timeoutSeconds: Int = 30) {
         if (!nfcUtils.isNFCAvailable()) {
             showNFCNotAvailableMessage()
             return
         }
 
-        showNFCDialog(
-            NFCActivationDialog.NFCDialogType.WAITING_TO_RECEIVE,
-            timeoutSeconds = timeoutSeconds
-        )
-        updateNFCState(NFCState.WAITING_TO_RECEIVE)
+        showNFCDialog("Ready to receive data. Hold phones together...", timeoutSeconds)
+        updateNFCState(NFCState.WAITING)
     }
 
     /**
@@ -212,7 +176,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     private fun setNFCTimeout(timeoutMs: Long) {
         cancelNFCTimeout()
         nfcTimeoutRunnable = Runnable {
-            if (currentNFCState == NFCState.WAITING_TO_SEND || currentNFCState == NFCState.WAITING_TO_RECEIVE) {
+            if (currentNFCState == NFCState.WAITING) {
                 updateNFCState(NFCState.ERROR)
                 onNFCTimeout()
             }
@@ -257,13 +221,6 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
      * Called when NFC operation is cancelled by user
      */
     protected open fun onNFCOperationCancelled() {
-        // Override in subclasses if needed
-    }
-
-    /**
-     * Called when user requests to retry NFC operation
-     */
-    protected open fun onNFCRetryRequested() {
         // Override in subclasses if needed
     }
 

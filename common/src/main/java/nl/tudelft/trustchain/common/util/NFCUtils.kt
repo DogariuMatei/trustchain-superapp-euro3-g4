@@ -8,7 +8,9 @@ import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.Ndef
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import java.nio.charset.Charset
 
 /**
@@ -87,13 +89,14 @@ class NFCUtils(private val context: Context) {
     /**
      * Process NFC intent and extract JSON data
      */
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     fun processIncomingNFCIntent(intent: Intent): String? {
         val action = intent.action
         if (action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
             action == NfcAdapter.ACTION_TAG_DISCOVERED ||
             action == NfcAdapter.ACTION_TECH_DISCOVERED) {
 
-            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+            val tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
             return tag?.let { readJSONFromTag(it) }
         }
         return null
