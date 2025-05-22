@@ -16,7 +16,6 @@ import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
-import nl.tudelft.trustchain.eurotoken.community.EuroTokenCommunity
 
 class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
     private var addContact = false
@@ -28,12 +27,6 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
             transactionRepository.trustChainCommunity.myPeer.publicKey.keyToBin().toHex()
                 .hexToBytes()
         )
-    }
-
-    @JvmName("getEuroTokenCommunity1")
-    private fun getEuroTokenCommunity(): EuroTokenCommunity {
-        return getIpv8().getOverlay()
-            ?: throw java.lang.IllegalStateException("EuroTokenCommunity is not configured")
     }
 
     override fun onViewCreated(
@@ -97,13 +90,13 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
         binding.txtAmount.text = TransactionRepository.prettyAmount(amount)
         binding.txtContactPublicKey.text = publicKey
 
-        val trustScore = trustStore.getScore(publicKey.hexToBytes())
+        val trustScore = trustStore.getScore(publicKey.toByteArray())
         logger.info { "Trustscore: $trustScore" }
 
         if (trustScore != null) {
             if (trustScore >= TRUSTSCORE_AVERAGE_BOUNDARY) {
                 binding.trustScoreWarning.text =
-                    getString(R.string.send_money_trustscore_warning_high, trustScore.toInt())
+                    getString(R.string.send_money_trustscore_warning_high, trustScore)
                 binding.trustScoreWarning.setBackgroundColor(
                     ContextCompat.getColor(
                         requireContext(),
@@ -112,7 +105,7 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
                 )
             } else if (trustScore > TRUSTSCORE_LOW_BOUNDARY) {
                 binding.trustScoreWarning.text =
-                    getString(R.string.send_money_trustscore_warning_average, trustScore.toInt())
+                    getString(R.string.send_money_trustscore_warning_average, trustScore)
                 binding.trustScoreWarning.setBackgroundColor(
                     ContextCompat.getColor(
                         requireContext(),
@@ -121,7 +114,7 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
                 )
             } else {
                 binding.trustScoreWarning.text =
-                    getString(R.string.send_money_trustscore_warning_low, trustScore.toInt())
+                    getString(R.string.send_money_trustscore_warning_low, trustScore)
                 binding.trustScoreWarning.setBackgroundColor(
                     ContextCompat.getColor(
                         requireContext(),
@@ -141,70 +134,21 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
             binding.trustScoreWarning.visibility = View.VISIBLE
         }
 
-        // Set up the Accept button
-        binding.btnAccept.setOnClickListener {
+        binding.btnSend.setOnClickListener {
             val newName = binding.newContactName.text.toString()
             if (addContact && newName.isNotEmpty()) {
+//                val key = defaultCryptoProvider.keyFromPublicBin(publicKey.hexToBytes())
                 ContactStore.getInstance(requireContext())
                     .addContact(key, newName)
             }
-
             val success = transactionRepository.sendTransferProposal(publicKey.hexToBytes(), amount)
             if (!success) {
-                Toast.makeText(
+                return@setOnClickListener Toast.makeText(
                     requireContext(),
                     "Insufficient balance",
                     Toast.LENGTH_LONG
                 ).show()
-                return@setOnClickListener
             }
-
-
-            try {
-                val euroTokenCommunity = getEuroTokenCommunity()
-                val peer = euroTokenCommunity.getPeers().find {
-                    it.publicKey.keyToBin().contentEquals(publicKey.hexToBytes())
-                }
-
-                if (peer != null) {
-                    euroTokenCommunity.sendAddressesOfLastTransactions(peer)
-                }
-            } catch (e: Exception) {
-                logger.error { "Failed to send trust data: ${e.message}" }
-            }
-
-            Toast.makeText(
-                requireContext(),
-                "Payment accepted and sent!",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
-        }
-
-
-        binding.btnDeny.setOnClickListener {
-            Toast.makeText(
-                requireContext(),
-                "Payment request denied",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            // Try to notify the requester that the payment was declined
-            try {
-                val euroTokenCommunity = getEuroTokenCommunity()
-                val peer = euroTokenCommunity.getPeers().find {
-                    it.publicKey.keyToBin().contentEquals(publicKey.hexToBytes())
-                }
-
-                if (peer != null) {
-                    // This is optional - would require a separate message type for declined payments
-                    // euroTokenCommunity.sendPaymentDeclined(peer)
-                }
-            } catch (e: Exception) {
-                logger.error { "Failed to send payment declined notification: ${e.message}" }
-            }
-
             findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
         }
     }

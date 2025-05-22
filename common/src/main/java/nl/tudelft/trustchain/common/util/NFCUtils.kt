@@ -141,12 +141,7 @@ class NFCUtils(private val context: Context) {
             action == NfcAdapter.ACTION_TAG_DISCOVERED ||
             action == NfcAdapter.ACTION_TECH_DISCOVERED) {
 
-            @Suppress("DEPRECATION")
-            val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, android.nfc.Tag::class.java)
-            } else {
-                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-            }
+            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
             return tag?.let { readJSONFromTag(it) }
         }
         return null

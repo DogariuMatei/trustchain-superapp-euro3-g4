@@ -1,20 +1,13 @@
 package nl.tudelft.trustchain.eurotoken
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
 import android.widget.Toast
-import androidx.navigation.findNavController
 import nl.tudelft.trustchain.common.BaseActivity
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import nl.tudelft.trustchain.common.util.NFCUtils
-import nl.tudelft.trustchain.eurotoken.ui.transfer.SendMoneyFragment
-import org.json.JSONObject
 
 class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteCapable {
     override val navigationGraph = R.navigation.nav_graph_eurotoken
@@ -34,49 +27,6 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
         super.onNewIntent(intent)
         if (intent != null) {
             handleNFCIntent(intent)
-        }
-    }
-
-    fun handleSimulatedNFCData(jsonData: String) {
-        Log.d("EuroTokenMainActivity", "Received simulated NFC data: $jsonData")
-
-        try {
-            // Check if this is valid JSON
-            val json = JSONObject(jsonData)
-            Log.d("EuroTokenMainActivity", "JSON contains keys: ${json.keys().asSequence().toList()}")
-
-            // Check if this is a payment request
-            if (json.has("amount") && json.optString("type") == "transfer") {
-                // This is a payment request - show a dialog and then navigate to SendMoneyFragment
-                runOnUiThread {
-                    AlertDialog.Builder(this)
-                        .setTitle("Payment Request Received")
-                        .setMessage("You've received a payment request for ${json.optLong("amount")} cents")
-                        .setPositiveButton("Review Request") { _, _ ->
-                            // Navigate directly to SendMoneyFragment
-                            val navController = findNavController(R.id.navHostFragment)
-
-                            val bundle = Bundle().apply {
-                                putString(SendMoneyFragment.ARG_PUBLIC_KEY, json.optString("public_key"))
-                                putLong(SendMoneyFragment.ARG_AMOUNT, json.optLong("amount"))
-                                putString(SendMoneyFragment.ARG_NAME, json.optString("name", ""))
-                            }
-
-                            navController.navigate(R.id.sendMoneyFragment, bundle)
-                        }
-                        .setCancelable(false)
-                        .show()
-                }
-                return
-            }
-
-            // For other types of data, use the original flow
-            runOnUiThread {
-                // Rest of your original code...
-            }
-        } catch (e: Exception) {
-            Log.e("EuroTokenMainActivity", "Error parsing JSON data: ${e.message}", e)
-            Toast.makeText(this, "Received invalid payment request data", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -115,29 +65,15 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
      * Get the current NFC-capable fragment
      */
     private fun getCurrentNFCFragment(): EurotokenNFCBaseFragment? {
-        try {
-            val navHostFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment)
-            val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
-
-            if (currentFragment is EurotokenNFCBaseFragment) {
-                return currentFragment
-            } else {
-                Log.e("EuroTokenMainActivity", "Current fragment is not NFC capable: ${currentFragment?.javaClass?.simpleName ?: "null"}")
-            }
-
-            return null
-        } catch (e: Exception) {
-            Log.e("EuroTokenMainActivity", "Error getting current fragment: ${e.message}", e)
-            return null
-        }
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment)
+        val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+        return currentFragment as? EurotokenNFCBaseFragment
     }
 
     /**
      * Setup NFC write operation (called from fragments)
      */
     override fun setupNFCWrite(jsonData: String, onResult: (Boolean) -> Unit) {
-        Log.d("EuroTokenMainActivity", "Setting up NFC write with data: $jsonData")
-
         if (!nfcUtils.isNFCAvailable()) {
             Toast.makeText(this, "NFC is not available or disabled", Toast.LENGTH_SHORT).show()
             onResult(false)
