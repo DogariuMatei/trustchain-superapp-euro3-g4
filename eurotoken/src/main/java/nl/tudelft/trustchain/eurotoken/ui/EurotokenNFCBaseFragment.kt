@@ -1,85 +1,244 @@
 package nl.tudelft.trustchain.eurotoken.ui
 
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.LayoutRes
 import nl.tudelft.trustchain.common.util.NFCUtils
+import nl.tudelft.trustchain.eurotoken.ui.components.NFCActivationDialog
 
 /**
- * Base fragment that handles NFC operations for EuroToken transfers
+ * Enhanced base fragment that handles NFC operations for EuroToken transfers
+ * with improved dialog management and state handling
  */
 abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : EurotokenBaseFragment(contentLayoutId) {
 
     protected val nfcUtils by lazy { NFCUtils(requireContext()) }
 
+    // NFC Dialog Management
+    private var nfcDialog: NFCActivationDialog? = null
+    private var nfcTimeoutHandler: Handler = Handler(Looper.getMainLooper())
+    private var nfcTimeoutRunnable: Runnable? = null
+
+    // NFC State Management
+    enum class NFCState {
+        IDLE,
+        WAITING_TO_SEND,
+        WAITING_TO_RECEIVE,
+        SENDING,
+        RECEIVING,
+        SUCCESS,
+        ERROR
+    }
+
+    private var currentNFCState: NFCState = NFCState.IDLE
+
     override fun onResume() {
         super.onResume()
-
         // Enable NFC reading when fragment is visible
         if (nfcUtils.isNFCAvailable()) {
             nfcUtils.enableNFCReading(requireActivity())
         } else {
-            Toast.makeText(requireContext(), "NFC is not available or disabled", Toast.LENGTH_SHORT).show()
+            showNFCNotAvailableMessage()
         }
     }
 
     override fun onPause() {
         super.onPause()
-
         // Disable NFC reading when fragment not visible
         if (nfcUtils.isNFCAvailable()) {
             nfcUtils.disableNFCReading(requireActivity())
         }
+
+        // Cleanup dialog and timeouts
+        dismissNFCDialog()
+        cancelNFCTimeout()
     }
 
     /**
-     * Handle new NFC intent
+     * Handle incoming NFC data with enhanced error handling
      */
-    fun handleNFCIntent(intent: Intent) {
-        val jsonData = nfcUtils.processNFCIntent(intent)
+    fun handleIncomingNFCIntent(intent: Intent) {
+        updateNFCState(NFCState.RECEIVING)
+
+        val jsonData = nfcUtils.processIncomingNFCIntent(intent)
         if (jsonData != null) {
             onNFCDataReceived(jsonData)
         } else {
+            updateNFCState(NFCState.ERROR)
             onNFCReadError("No valid data found on NFC tag")
         }
     }
 
     /**
-     * Write data to NFC tag
+     * Show NFC activation dialog with proper state management
      */
-    protected fun writeToNFC(jsonData: String, onResult: (Boolean) -> Unit) {
-        // TODO:
-        // This will be triggered when user taps an NFC tag
-        // We'll store the data to write and callback for when tag is detected
-        setupNFCWrite(jsonData, onResult)
+    protected fun showNFCDialog(
+        dialogType: NFCActivationDialog.NFCDialogType,
+        amount: String = "",
+        recipientName: String = "",
+        timeoutSeconds: Int = 30
+    ) {
+        dismissNFCDialog() // Dismiss any existing dialog
+
+        nfcDialog = NFCActivationDialog.newInstance(dialogType, amount, recipientName)
+        nfcDialog?.setListener(object : NFCActivationDialog.NFCDialogListener {
+            override fun onCancel() {
+                updateNFCState(NFCState.IDLE)
+                onNFCOperationCancelled()
+            }
+
+            override fun onRetry() {
+                onNFCRetryRequested()
+            }
+        })
+
+        nfcDialog?.show(parentFragmentManager, "nfc_dialog")
+
+        // Set timeout for the operation
+        if (timeoutSeconds > 0) {
+            setNFCTimeout(timeoutSeconds * 1000L)
+        }
     }
 
     /**
-     * Setup for NFC writing - stores data until tag is detected
+     * Update the current NFC dialog state
      */
-    private fun setupNFCWrite(jsonData: String, onResult: (Boolean) -> Unit) {
-        // TODO:
-        // For writing, we need to wait for a tag to be detected
-        // This would typically involve setting up a pending write operation
-        // For now, we'll show instructions to user
-        showNFCWriteInstructions(jsonData, onResult)
+    protected fun updateNFCDialogState(newDialogType: NFCActivationDialog.NFCDialogType) {
+        nfcDialog?.updateDialogType(newDialogType)
     }
 
     /**
-     * Show instructions for NFC writing
+     * Dismiss the current NFC dialog
      */
-    private fun showNFCWriteInstructions(jsonData: String, onResult: (Boolean) -> Unit) {
-        Toast.makeText(
-            requireContext(),
-            "Hold your phone near the receiver's phone to transfer payment request",
-            Toast.LENGTH_LONG
-        ).show()
+    protected fun dismissNFCDialog() {
+        nfcDialog?.dismiss()
+        nfcDialog = null
+        cancelNFCTimeout()
+    }
 
-        requireActivity().let { activity ->
-            if (activity is NFCWriteCapable) {
-                activity.setupNFCWrite(jsonData, onResult)
+    /**
+     * Update the current NFC state and optionally update dialog
+     */
+    protected fun updateNFCState(newState: NFCState) {
+        currentNFCState = newState
+
+        val dialogType = when (newState) {
+            NFCState.WAITING_TO_SEND -> NFCActivationDialog.NFCDialogType.WAITING_TO_SEND
+            NFCState.WAITING_TO_RECEIVE -> NFCActivationDialog.NFCDialogType.WAITING_TO_RECEIVE
+            NFCState.SENDING -> NFCActivationDialog.NFCDialogType.SENDING
+            NFCState.RECEIVING -> NFCActivationDialog.NFCDialogType.RECEIVING
+            NFCState.SUCCESS -> NFCActivationDialog.NFCDialogType.SUCCESS
+            NFCState.ERROR -> NFCActivationDialog.NFCDialogType.ERROR
+            NFCState.IDLE -> {
+                dismissNFCDialog()
+                return
             }
         }
+
+        updateNFCDialogState(dialogType)
+    }
+
+    /**
+     * Write data to NFC tag with enhanced dialog management
+     */
+    protected fun writeToNFC(
+        jsonData: String,
+        amount: String = "",
+        recipientName: String = "",
+        onResult: (Boolean) -> Unit
+    ) {
+        if (!nfcUtils.isNFCAvailable()) {
+            onResult(false)
+            showNFCNotAvailableMessage()
+            return
+        }
+
+        // Show waiting dialog
+        showNFCDialog(
+            NFCActivationDialog.NFCDialogType.WAITING_TO_SEND,
+            amount,
+            recipientName
+        )
+        updateNFCState(NFCState.WAITING_TO_SEND)
+
+        // Setup NFC write through activity
+        requireActivity().let { activity ->
+            if (activity is NFCWriteCapable) {
+                activity.setupNFCWrite(jsonData) { success ->
+                    if (success) {
+                        updateNFCState(NFCState.SUCCESS)
+                        onResult(true)
+
+                        // Auto-dismiss success dialog after delay
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            dismissNFCDialog()
+                        }, 2000)
+                    } else {
+                        updateNFCState(NFCState.ERROR)
+                        onResult(false)
+                    }
+                }
+            } else {
+                updateNFCState(NFCState.ERROR)
+                onResult(false)
+            }
+        }
+    }
+
+    /**
+     * Activate NFC for receiving data
+     */
+    protected fun activateNFCReceive(
+        expectedDataType: String = "",
+        timeoutSeconds: Int = 30
+    ) {
+        if (!nfcUtils.isNFCAvailable()) {
+            showNFCNotAvailableMessage()
+            return
+        }
+
+        showNFCDialog(
+            NFCActivationDialog.NFCDialogType.WAITING_TO_RECEIVE,
+            timeoutSeconds = timeoutSeconds
+        )
+        updateNFCState(NFCState.WAITING_TO_RECEIVE)
+    }
+
+    /**
+     * Set a timeout for NFC operations
+     */
+    private fun setNFCTimeout(timeoutMs: Long) {
+        cancelNFCTimeout()
+        nfcTimeoutRunnable = Runnable {
+            if (currentNFCState == NFCState.WAITING_TO_SEND || currentNFCState == NFCState.WAITING_TO_RECEIVE) {
+                updateNFCState(NFCState.ERROR)
+                onNFCTimeout()
+            }
+        }
+        nfcTimeoutHandler.postDelayed(nfcTimeoutRunnable!!, timeoutMs)
+    }
+
+    /**
+     * Cancel any pending NFC timeout
+     */
+    private fun cancelNFCTimeout() {
+        nfcTimeoutRunnable?.let { runnable ->
+            nfcTimeoutHandler.removeCallbacks(runnable)
+        }
+        nfcTimeoutRunnable = null
+    }
+
+    /**
+     * Show message when NFC is not available
+     */
+    private fun showNFCNotAvailableMessage() {
+        Toast.makeText(
+            requireContext(),
+            "NFC is not available or disabled. Please enable NFC in settings.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     /**
@@ -92,6 +251,27 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
      */
     protected open fun onNFCReadError(error: String) {
         Toast.makeText(requireContext(), "NFC Read Error: $error", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Called when NFC operation is cancelled by user
+     */
+    protected open fun onNFCOperationCancelled() {
+        // Override in subclasses if needed
+    }
+
+    /**
+     * Called when user requests to retry NFC operation
+     */
+    protected open fun onNFCRetryRequested() {
+        // Override in subclasses if needed
+    }
+
+    /**
+     * Called when NFC operation times out
+     */
+    protected open fun onNFCTimeout() {
+        Toast.makeText(requireContext(), "NFC operation timed out. Please try again.", Toast.LENGTH_LONG).show()
     }
 
     /**

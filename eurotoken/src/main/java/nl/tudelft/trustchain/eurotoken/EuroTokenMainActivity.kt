@@ -57,7 +57,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
             }
 
             // Otherwise, try to read from the tag and pass to current fragment
-            getCurrentNFCFragment()?.handleNFCIntent(intent)
+            getCurrentNFCFragment()?.handleIncomingNFCIntent(intent)
         }
     }
 

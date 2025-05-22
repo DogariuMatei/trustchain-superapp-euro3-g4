@@ -2,11 +2,9 @@ package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -16,57 +14,28 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import nl.tudelft.ipv8.Peer
-import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
-import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
-import nl.tudelft.trustchain.eurotoken.community.EuroTokenCommunity
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentTransferEuroBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
+import nl.tudelft.trustchain.eurotoken.ui.components.NFCActivationDialog
 import org.json.JSONException
 import org.json.JSONObject
 
 class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_euro) {
     private val binding by viewBinding(FragmentTransferEuroBinding::bind)
+    private var isNFCReceiveModeActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launchWhenResumed {
             while (isActive) {
-                val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
-                val ownContact =
-                    ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
-                val pref =
-                    requireContext().getSharedPreferences(
-                        EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
-                        Context.MODE_PRIVATE
-                    )
-                val demoModeEnabled =
-                    pref.getBoolean(
-                        EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED,
-                        false
-                    )
-
-                if (demoModeEnabled) {
-                    binding.txtBalance.text =
-                        TransactionRepository.prettyAmount(transactionRepository.getMyBalance())
-                } else {
-                    binding.txtBalance.text =
-                        TransactionRepository.prettyAmount(transactionRepository.getMyVerifiedBalance())
-                }
-                if (ownContact?.name != null) {
-                    binding.missingNameLayout.visibility = View.GONE
-                    binding.txtOwnName.text = "Your balance (" + ownContact.name + ")"
-                } else {
-                    binding.missingNameLayout.visibility = View.VISIBLE
-                    binding.txtOwnName.text = "Your balance"
-                }
+                updateBalanceDisplay()
                 delay(1000L)
             }
         }
@@ -78,49 +47,61 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     ) {
         super.onViewCreated(view, savedInstanceState)
 
+        setupUI()
+        setupButtonListeners()
+    }
+
+    private fun setupUI() {
         val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
-        val ownContact = ContactStore.getInstance(view.context).getContactFromPublicKey(ownKey)
+        val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
-        val pref =
-            requireContext().getSharedPreferences(
-                EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
-                Context.MODE_PRIVATE
-            )
-        val demoModeEnabled =
-            pref.getBoolean(
-                EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED,
-                false
-            )
-
-        if (demoModeEnabled) {
-            binding.txtBalance.text =
-                TransactionRepository.prettyAmount(transactionRepository.getMyBalance())
-        } else {
-            binding.txtBalance.text =
-                TransactionRepository.prettyAmount(transactionRepository.getMyVerifiedBalance())
-        }
         binding.txtOwnPublicKey.text = ownKey.keyToHash().toHex()
+
+        updateBalanceDisplay()
 
         if (ownContact?.name != null) {
             binding.missingNameLayout.visibility = View.GONE
-            binding.txtOwnName.text = "Your balance (" + ownContact.name + ")"
+            binding.txtOwnName.text = "Your balance (${ownContact.name})"
+        } else {
+            binding.missingNameLayout.visibility = View.VISIBLE
+            binding.txtOwnName.text = "Your balance"
         }
 
-        fun addName() {
-            val newName = binding.edtMissingName.text.toString()
-            if (newName.isNotEmpty()) {
-                ContactStore.getInstance(requireContext())
-                    .addContact(ownKey, newName)
-                if (ownContact?.name != null) {
-                    binding.missingNameLayout.visibility = View.GONE
-                    binding.txtOwnName.text = "Your balance (" + ownContact.name + ")"
-                }
-                val inputMethodManager =
-                    requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
-                inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
-            }
+        binding.edtAmount.addDecimalLimiter()
+    }
+
+    private fun updateBalanceDisplay() {
+        val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
+        val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
+
+        val pref = requireContext().getSharedPreferences(
+            EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
+            Context.MODE_PRIVATE
+        )
+        val demoModeEnabled = pref.getBoolean(
+            EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED,
+            false
+        )
+
+        val balance = if (demoModeEnabled) {
+            transactionRepository.getMyBalance()
+        } else {
+            transactionRepository.getMyVerifiedBalance()
         }
 
+        binding.txtBalance.text = TransactionRepository.prettyAmount(balance)
+
+        if (ownContact?.name != null) {
+            binding.missingNameLayout.visibility = View.GONE
+            binding.txtOwnName.text = "Your balance (${ownContact.name})"
+        } else {
+            binding.missingNameLayout.visibility = View.VISIBLE
+            binding.txtOwnName.text = "Your balance"
+        }
+    }
+
+    private fun setupButtonListeners() {
+        // Add Name functionality
         binding.btnAdd.setOnClickListener {
             addName()
         }
@@ -129,70 +110,117 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             addName()
         }
 
-        binding.edtAmount.addDecimalLimiter()
-
-        /**
-         * Modified from original: Replaced QR generation with NFC writing
-         */
+        // Request Payment Button - Phase 1 NFC Transaction
         binding.btnRequest.setOnClickListener {
             val amount = getAmount(binding.edtAmount.text.toString())
             if (amount > 0) {
-                createPaymentRequest(amount)
+                initiatePaymentRequest(amount)
             } else {
                 Toast.makeText(requireContext(), "Please specify a positive amount", Toast.LENGTH_SHORT).show()
             }
         }
 
-        /**
-         * Modified from original: Added NFC instructions
-         */
+        // Activate NFC Receive Button - Updated button functionality
         binding.btnSend.setOnClickListener {
-            startNFCPaymentReceive()
+            toggleNFCReceiveMode()
+        }
+    }
+
+    private fun addName() {
+        val newName = binding.edtMissingName.text.toString()
+        if (newName.isNotEmpty()) {
+            val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
+            ContactStore.getInstance(requireContext()).addContact(ownKey, newName)
+
+            binding.missingNameLayout.visibility = View.GONE
+            binding.txtOwnName.text = "Your balance ($newName)"
+
+            val inputMethodManager =
+                requireContext().getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+            inputMethodManager.hideSoftInputFromWindow(view?.windowToken, 0)
         }
     }
 
     /**
-     * Create a payment request and write it to NFC
+     * Initiate a payment request - Phase 1 of the NFC transaction
      */
-    private fun createPaymentRequest(amount: Long) {
+    private fun initiatePaymentRequest(amount: Long) {
         val myPeer = transactionRepository.trustChainCommunity.myPeer
         val ownKey = myPeer.publicKey
         val contact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
-        val connectionData = JSONObject()
-        connectionData.put("public_key", myPeer.publicKey.keyToBin().toHex())
-        connectionData.put("amount", amount)
-        connectionData.put("name", contact?.name ?: "")
-        connectionData.put("type", "transfer")
+        val paymentRequest = JSONObject()
+        paymentRequest.put("type", "payment_request")
+        paymentRequest.put("public_key", myPeer.publicKey.keyToBin().toHex())
+        paymentRequest.put("amount", amount)
+        paymentRequest.put("requester_name", contact?.name ?: "")
+        paymentRequest.put("timestamp", System.currentTimeMillis())
 
-        // Write payment request to NFC
-        writeToNFC(connectionData.toString()) { success ->
-            if (success) {
-                Toast.makeText(requireContext(), "Payment request ready! Ask the sender to tap phones.", Toast.LENGTH_LONG).show()
-                navigateToNFCWaitingScreen(connectionData.toString())
-            } else {
-                Toast.makeText(requireContext(), "Failed to prepare payment request", Toast.LENGTH_SHORT).show()
-            }
+        // Navigate to NFC waiting screen for payment request
+        navigateToNFCRequestScreen(paymentRequest.toString())
+    }
+
+    /**
+     * Toggle NFC receive mode
+     */
+    private fun toggleNFCReceiveMode() {
+        if (isNFCReceiveModeActive) {
+            deactivateNFCReceiveMode()
+        } else {
+            activateNFCReceiveMode()
         }
     }
 
     /**
-     * Start NFC for receiving payment
+     * Activate NFC receive mode for incoming payment requests
      */
-    private fun startNFCPaymentReceive() {
+    private fun activateNFCReceiveMode() {
+        isNFCReceiveModeActive = true
+        updateButtonStates()
+
+        activateNFCReceive("payment_request", 60) // 60 second timeout
+
         Toast.makeText(
             requireContext(),
-            "Ready to receive payment. Ask the receiver to tap phones when ready.",
+            "Ready to receive payment request. Ask the requester to tap phones when ready.",
             Toast.LENGTH_LONG
         ).show()
     }
 
     /**
-     * Navigate to NFC waiting screen (similar to RequestMoneyFragment)
+     * Deactivate NFC receive mode
      */
-    private fun navigateToNFCWaitingScreen(paymentData: String) {
+    private fun deactivateNFCReceiveMode() {
+        isNFCReceiveModeActive = false
+        updateButtonStates()
+        dismissNFCDialog()
+
+        Toast.makeText(
+            requireContext(),
+            "NFC receive mode deactivated",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    /**
+     * Update button states based on NFC mode
+     */
+    private fun updateButtonStates() {
+        if (isNFCReceiveModeActive) {
+            binding.btnSend.text = "Cancel NFC"
+            binding.btnSend.setBackgroundColor(resources.getColor(R.color.nfc_error, null))
+        } else {
+            binding.btnSend.text = "Activate NFC"
+            binding.btnSend.setBackgroundColor(resources.getColor(R.color.colorPrimary, null))
+        }
+    }
+
+    /**
+     * Navigate to NFC request waiting screen
+     */
+    private fun navigateToNFCRequestScreen(paymentRequestData: String) {
         val args = Bundle()
-        args.putString(RequestMoneyFragment.ARG_DATA, paymentData)
+        args.putString(RequestMoneyFragment.ARG_DATA, paymentRequestData)
         findNavController().navigate(
             R.id.action_transferFragment_to_requestMoneyFragment,
             args
@@ -200,86 +228,103 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     /**
-     * Handle received NFC data
+     * Handle received NFC data - This handles both Phase 1 and Phase 2 data
      */
     override fun onNFCDataReceived(jsonData: String) {
         try {
-            val connectionData = ConnectionData(jsonData)
+            val receivedData = JSONObject(jsonData)
+            val dataType = receivedData.optString("type")
 
-            val args = Bundle()
-            args.putString(SendMoneyFragment.ARG_PUBLIC_KEY, connectionData.publicKey)
-            args.putLong(SendMoneyFragment.ARG_AMOUNT, connectionData.amount)
-            args.putString(SendMoneyFragment.ARG_NAME, connectionData.name)
-
-            // Try to send the addresses of the last X transactions to the peer we received data from
-            try {
-                val peer = findPeer(
-                    defaultCryptoProvider.keyFromPublicBin(connectionData.publicKey.hexToBytes()).toString()
-                )
-                if (peer == null) {
-                    logger.warn { "Could not find peer from NFC data by public key " + connectionData.publicKey }
-                    Toast.makeText(
-                        requireContext(),
-                        "Could not find peer from NFC data",
-                        Toast.LENGTH_LONG
-                    ).show()
+            when (dataType) {
+                "payment_request" -> {
+                    // Received Phase 1 - Payment Request from Requester
+                    handlePaymentRequest(receivedData)
                 }
-                val euroTokenCommunity = getIpv8().getOverlay<EuroTokenCommunity>()
-                if (euroTokenCommunity == null) {
-                    Toast.makeText(
-                        requireContext(),
-                        "Could not find community",
-                        Toast.LENGTH_LONG
-                    ).show()
+                "payment_confirmation" -> {
+                    // Received Phase 2 - Payment Confirmation from Sender
+                    handlePaymentConfirmation(receivedData)
                 }
-                if (peer != null && euroTokenCommunity != null) {
-                    logger.info { "Note: Peer communication requires network connectivity" }
+                else -> {
+                    updateNFCState(NFCState.ERROR)
+                    Toast.makeText(requireContext(), "Invalid transaction data received", Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
-                logger.error { e }
-                Toast.makeText(
-                    requireContext(),
-                    "Failed to process peer information",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-
-            if (connectionData.type == "transfer") {
-                findNavController().navigate(
-                    R.id.action_transferFragment_to_sendMoneyFragment,
-                    args
-                )
-            } else {
-                Toast.makeText(requireContext(), "Invalid payment request", Toast.LENGTH_LONG).show()
             }
         } catch (e: JSONException) {
-            onNFCReadError("Invalid payment request format")
+            updateNFCState(NFCState.ERROR)
+            onNFCReadError("Invalid transaction data format")
         }
+    }
+
+    /**
+     * Handle Phase 1 - Payment Request received from Requester
+     */
+    private fun handlePaymentRequest(paymentRequest: JSONObject) {
+        val amount = paymentRequest.optLong("amount", -1L)
+        val publicKey = paymentRequest.optString("public_key")
+        val requesterName = paymentRequest.optString("requester_name")
+
+        if (amount <= 0 || publicKey.isEmpty()) {
+            updateNFCState(NFCState.ERROR)
+            Toast.makeText(requireContext(), "Invalid payment request data", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        updateNFCState(NFCState.SUCCESS)
+        dismissNFCDialog()
+        deactivateNFCReceiveMode()
+
+        // Navigate to SendMoneyFragment to review the transaction
+        val args = Bundle()
+        args.putString(SendMoneyFragment.ARG_PUBLIC_KEY, publicKey)
+        args.putLong(SendMoneyFragment.ARG_AMOUNT, amount)
+        args.putString(SendMoneyFragment.ARG_NAME, requesterName)
+
+        findNavController().navigate(
+            R.id.action_transferFragment_to_sendMoneyFragment,
+            args
+        )
+    }
+
+    /**
+     * Handle Phase 2 - Payment Confirmation received from Sender
+     */
+    private fun handlePaymentConfirmation(paymentConfirmation: JSONObject) {
+        // TODO: Process the actual transaction data
+        // This will be implemented in Phase 4 of the plan
+
+        updateNFCState(NFCState.SUCCESS)
+
+        Toast.makeText(requireContext(), "Payment received successfully!", Toast.LENGTH_LONG).show()
+
+        // Auto-dismiss success dialog and navigate
+        dismissNFCDialog()
+        findNavController().navigate(R.id.transactionsFragment)
     }
 
     override fun onNFCReadError(error: String) {
         super.onNFCReadError(error)
-        Toast.makeText(requireContext(), "Failed to read payment request: $error", Toast.LENGTH_LONG).show()
+        updateNFCState(NFCState.ERROR)
+        Toast.makeText(requireContext(), "Failed to read transaction data: $error", Toast.LENGTH_LONG).show()
     }
 
-    /**
-     * Find a [Peer] in the network by its public key.
-     */
-    private fun findPeer(pubKey: String): Peer? {
-        val itr = transactionRepository.trustChainCommunity.getPeers().listIterator()
-        while (itr.hasNext()) {
-            val cur: Peer = itr.next()
-            Log.d("EUROTOKEN", cur.key.pub().toString())
-            if (cur.key.pub().toString() == pubKey) {
-                return cur
-            }
+    override fun onNFCOperationCancelled() {
+        super.onNFCOperationCancelled()
+        deactivateNFCReceiveMode()
+    }
+
+    override fun onNFCRetryRequested() {
+        super.onNFCRetryRequested()
+        if (isNFCReceiveModeActive) {
+            activateNFCReceiveMode()
         }
-        return null
+    }
+
+    override fun onNFCTimeout() {
+        super.onNFCTimeout()
+        deactivateNFCReceiveMode()
     }
 
     companion object {
-        private const val KEY_PUBLIC_KEY = "public_key"
-
         fun EditText.onSubmit(func: () -> Unit) {
             setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -287,13 +332,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 }
                 true
             }
-        }
-
-        class ConnectionData(json: String) : JSONObject(json) {
-            var publicKey = this.optString("public_key")
-            var amount = this.optLong("amount", -1L)
-            var name = this.optString("name")
-            var type = this.optString("type")
         }
 
         fun getAmount(amount: String): Long {

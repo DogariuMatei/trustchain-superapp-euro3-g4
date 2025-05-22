@@ -1,7 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.ui.exchange
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -29,6 +28,7 @@ class ExchangeFragment : EurotokenNFCBaseFragment() {
     @Suppress("ktlint:standard:property-naming") // False positive
     private var _binding: FragmentExchangeBinding? = null
     private val binding get() = _binding!!
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -85,7 +85,7 @@ class ExchangeFragment : EurotokenNFCBaseFragment() {
         super.onViewCreated(view, savedInstanceState)
         binding.txtOwnPublicKey.text = getTrustChainCommunity().myPeer.publicKey.keyToHash().toHex()
 
-        // Modified: Replaced QR scan with NFC
+        // NFC Gateway Connection instead of QR scanning
         binding.btnCamera.setOnClickListener {
             startNFCGatewayReceive()
         }
@@ -114,7 +114,7 @@ class ExchangeFragment : EurotokenNFCBaseFragment() {
     private fun startNFCGatewayReceive() {
         Toast.makeText(
             requireContext(),
-            "Ready to connect to gateway. Tap phones when ready.",
+            "Ready to connect to gateway. Hold phones together when ready.",
             Toast.LENGTH_LONG
         ).show()
     }

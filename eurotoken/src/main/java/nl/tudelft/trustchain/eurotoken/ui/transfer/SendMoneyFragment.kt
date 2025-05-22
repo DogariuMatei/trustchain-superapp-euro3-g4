@@ -15,9 +15,10 @@ import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
-import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
+import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
+import org.json.JSONObject
 
-class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
+class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money) {
     private var addContact = false
 
     private val binding by viewBinding(FragmentSendMoneyBinding::bind)
@@ -90,6 +91,19 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
         binding.txtAmount.text = TransactionRepository.prettyAmount(amount)
         binding.txtContactPublicKey.text = publicKey
 
+        // Display trust score information
+        displayTrustScore(publicKey)
+
+        // Handle Send button - This will trigger Phase 2 NFC transaction
+        binding.btnSend.setOnClickListener {
+            handleSendTransaction(publicKey, amount, name)
+        }
+    }
+
+    /**
+     * Display trust score information for the recipient
+     */
+    private fun displayTrustScore(publicKey: String) {
         val trustScore = trustStore.getScore(publicKey.toByteArray())
         logger.info { "Trustscore: $trustScore" }
 
@@ -133,24 +147,128 @@ class SendMoneyFragment : EurotokenBaseFragment(R.layout.fragment_send_money) {
             )
             binding.trustScoreWarning.visibility = View.VISIBLE
         }
+    }
 
-        binding.btnSend.setOnClickListener {
-            val newName = binding.newContactName.text.toString()
-            if (addContact && newName.isNotEmpty()) {
-//                val key = defaultCryptoProvider.keyFromPublicBin(publicKey.hexToBytes())
-                ContactStore.getInstance(requireContext())
-                    .addContact(key, newName)
-            }
-            val success = transactionRepository.sendTransferProposal(publicKey.hexToBytes(), amount)
+    /**
+     * Handle the send transaction process - Phase 2 NFC transaction
+     */
+    private fun handleSendTransaction(publicKey: String, amount: Long, contactName: String) {
+        // Add contact if requested
+        val newName = binding.newContactName.text.toString()
+        if (addContact && newName.isNotEmpty()) {
+            val key = defaultCryptoProvider.keyFromPublicBin(publicKey.hexToBytes())
+            ContactStore.getInstance(requireContext())
+                .addContact(key, newName)
+        }
+
+        // Check if user has sufficient balance
+        val pref = requireContext().getSharedPreferences(
+            EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
+            Context.MODE_PRIVATE
+        )
+        val demoModeEnabled = pref.getBoolean(
+            EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED,
+            false
+        )
+
+        val currentBalance = if (demoModeEnabled) {
+            transactionRepository.getMyBalance()
+        } else {
+            transactionRepository.getMyVerifiedBalance()
+        }
+
+        if (currentBalance < amount) {
+            Toast.makeText(
+                requireContext(),
+                "Insufficient balance",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Create the transaction data for Phase 2
+        createAndSendTransaction(publicKey, amount, contactName)
+    }
+
+    /**
+     * Create transaction data and initiate NFC transmission - Phase 2
+     */
+    private fun createAndSendTransaction(recipientPublicKey: String, amount: Long, contactName: String) {
+        try {
+            // Create offline transaction
+            val success = transactionRepository.sendTransferProposal(recipientPublicKey.hexToBytes(), amount)
+
             if (!success) {
-                return@setOnClickListener Toast.makeText(
+                Toast.makeText(
                     requireContext(),
-                    "Insufficient balance",
+                    "Failed to create transaction",
                     Toast.LENGTH_LONG
                 ).show()
+                return
             }
-            findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
+
+            // Create payment confirmation data for NFC transmission
+            val myPeer = transactionRepository.trustChainCommunity.myPeer
+            val senderContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(myPeer.publicKey)
+
+            val paymentConfirmation = JSONObject()
+            paymentConfirmation.put("type", "payment_confirmation")
+            paymentConfirmation.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
+            paymentConfirmation.put("sender_name", senderContact?.name ?: "")
+            paymentConfirmation.put("recipient_public_key", recipientPublicKey)
+            paymentConfirmation.put("amount", amount)
+            paymentConfirmation.put("timestamp", System.currentTimeMillis())
+            // TODO: Add actual transaction block data in Phase 4
+
+            // Initiate NFC transmission
+            Toast.makeText(
+                requireContext(),
+                "Hold your phone near the recipient's phone to complete the transaction",
+                Toast.LENGTH_LONG
+            ).show()
+
+            writeToNFC(paymentConfirmation.toString()) { success ->
+                if (success) {
+                    Toast.makeText(
+                        requireContext(),
+                        "Transaction sent successfully!",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    // Navigate to transaction history
+                    findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Failed to send transaction. Please try again.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+        } catch (e: Exception) {
+            logger.error { "Error creating transaction: ${e.message}" }
+            Toast.makeText(
+                requireContext(),
+                "Error creating transaction: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
         }
+    }
+
+    /**
+     * Handle incoming NFC data (should not receive data in this fragment during normal flow)
+     */
+    override fun onNFCDataReceived(jsonData: String) {
+        Toast.makeText(requireContext(), "Unexpected data received", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Handle NFC errors
+     */
+    override fun onNFCReadError(error: String) {
+        super.onNFCReadError(error)
+        Toast.makeText(requireContext(), "NFC Error: $error", Toast.LENGTH_SHORT).show()
     }
 
     companion object {

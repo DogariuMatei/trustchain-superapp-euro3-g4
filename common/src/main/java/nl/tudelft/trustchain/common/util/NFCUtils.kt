@@ -28,14 +28,27 @@ class NFCUtils(private val context: Context) {
     }
 
     /**
-     * Create NDEF message from JSON string
+     * Enable NFC reading mode
      */
-    fun createNDEFMessageFromJSON(jsonData: String): NdefMessage {
-        val mimeRecord = NdefRecord.createMime(
-            MIME_TYPE_JSON,
-            jsonData.toByteArray(Charset.forName("UTF-8"))
-        )
-        return NdefMessage(mimeRecord)
+    fun enableNFCReading(activity: Activity) {
+        nfcAdapter?.let { adapter ->
+            val intent = Intent(activity, activity.javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                activity, 0, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+
+            adapter.enableForegroundDispatch(activity, pendingIntent, null, null)
+            Log.d(TAG, "NFC reading enabled")
+        }
+    }
+
+    /**
+     * Disable NFC reading mode
+     */
+    fun disableNFCReading(activity: Activity) {
+        nfcAdapter?.disableForegroundDispatch(activity)
+        Log.d(TAG, "NFC reading disabled")
     }
 
     fun writeJSONToTag(tag: Tag, jsonData: String): Boolean {
@@ -47,7 +60,6 @@ class NFCUtils(private val context: Context) {
 
             ndef.connect()
 
-            // Check if tag is writable and has enough space
             if (!ndef.isWritable) {
                 Log.e(TAG, "Tag is not writable")
                 ndef.close()
@@ -70,6 +82,21 @@ class NFCUtils(private val context: Context) {
             Log.e(TAG, "Error writing to NFC tag", e)
             false
         }
+    }
+
+    /**
+     * Process NFC intent and extract JSON data
+     */
+    fun processIncomingNFCIntent(intent: Intent): String? {
+        val action = intent.action
+        if (action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
+            action == NfcAdapter.ACTION_TAG_DISCOVERED ||
+            action == NfcAdapter.ACTION_TECH_DISCOVERED) {
+
+            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+            return tag?.let { readJSONFromTag(it) }
+        }
+        return null
     }
 
     /**
@@ -109,41 +136,13 @@ class NFCUtils(private val context: Context) {
     }
 
     /**
-     * Enable NFC reading mode
+     * Create NDEF message from JSON string
      */
-    fun enableNFCReading(activity: Activity) {
-        nfcAdapter?.let { adapter ->
-            val intent = Intent(activity, activity.javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            val pendingIntent = android.app.PendingIntent.getActivity(
-                activity, 0, intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-
-            adapter.enableForegroundDispatch(activity, pendingIntent, null, null)
-            Log.d(TAG, "NFC reading enabled")
-        }
-    }
-
-    /**
-     * Disable NFC reading mode
-     */
-    fun disableNFCReading(activity: Activity) {
-        nfcAdapter?.disableForegroundDispatch(activity)
-        Log.d(TAG, "NFC reading disabled")
-    }
-
-    /**
-     * Process NFC intent and extract JSON data
-     */
-    fun processNFCIntent(intent: Intent): String? {
-        val action = intent.action
-        if (action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
-            action == NfcAdapter.ACTION_TAG_DISCOVERED ||
-            action == NfcAdapter.ACTION_TECH_DISCOVERED) {
-
-            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
-            return tag?.let { readJSONFromTag(it) }
-        }
-        return null
+    fun createNDEFMessageFromJSON(jsonData: String): NdefMessage {
+        val mimeRecord = NdefRecord.createMime(
+            MIME_TYPE_JSON,
+            jsonData.toByteArray(Charset.forName("UTF-8"))
+        )
+        return NdefMessage(mimeRecord)
     }
 }
