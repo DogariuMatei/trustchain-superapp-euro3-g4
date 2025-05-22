@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
@@ -13,7 +14,9 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     private val binding by viewBinding(FragmentRequestMoneyBinding::bind)
 
     private var paymentRequestData: String? = null
+    private var isPhase1Complete = false
 
+    @SuppressLint("SetTextI18n")
     override fun onViewCreated(
         view: View,
         savedInstanceState: Bundle?
@@ -28,37 +31,42 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
         // Display payment request data for debugging (can be removed later)
         binding.txtRequestData.text = "Payment request ready for NFC transmission"
 
-        showNFCInstructions()
-
-        // Automatically start NFC transmission
-        startNFCTransmission()
+        // Start Phase 1 NFC transmission immediately
+        startPhase1NFCTransmission()
 
         binding.btnContinue.setOnClickListener {
-            findNavController().navigate(R.id.action_requestMoneyFragment_to_transactionsFragment)
+            if (isPhase1Complete) {
+                // Navigate back to TransferFragment with Phase 2 activation signal
+                val args = Bundle()
+                args.putBoolean("activate_phase2", true)
+                findNavController().navigate(R.id.transferFragment, args)
+            } else {
+                Toast.makeText(requireContext(), "Please complete Phase 1 first", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     /**
-     * Show instructions for NFC usage
+     * Start Phase 1 NFC transmission of payment request
      */
-    private fun showNFCInstructions() {
-        Toast.makeText(
-            requireContext(),
-            "Payment request ready. Ask the sender to hold their phone near yours to receive the request.",
-            Toast.LENGTH_LONG
-        ).show()
-    }
-
-    /**
-     * Start NFC transmission of payment request
-     */
-    private fun startNFCTransmission() {
+    @SuppressLint("SetTextI18n")
+    private fun startPhase1NFCTransmission() {
         paymentRequestData?.let { data ->
+            Toast.makeText(
+                requireContext(),
+                "Ask the sender to activate NFC, then hold phones together",
+                Toast.LENGTH_LONG
+            ).show()
+
             writeToNFC(data) { success ->
                 if (success) {
+                    isPhase1Complete = true
+                    binding.txtRequestData.text = "Payment request sent! Waiting for response..."
+                    binding.btnContinue.text = "Activate Phase 2"
+
                     Toast.makeText(
                         requireContext(),
-                        "Payment request sent successfully! Waiting for response...",
+                        "Payment request sent successfully! You can now activate Phase 2 to receive the payment.",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
@@ -67,31 +75,36 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
                         "Failed to send payment request. Please try again.",
                         Toast.LENGTH_SHORT
                     ).show()
+                    // Allow retry
+                    retryPhase1Transmission()
                 }
             }
         }
     }
 
     /**
-     * Handle incoming NFC data - This should receive the payment confirmation (Phase 2)
+     * Allow user to retry Phase 1 transmission
+     */
+    @SuppressLint("SetTextI18n")
+    private fun retryPhase1Transmission() {
+        binding.btnContinue.text = "Retry Request"
+        binding.btnContinue.setOnClickListener {
+            startPhase1NFCTransmission()
+        }
+    }
+
+    /**
+     * Handle incoming NFC data - Should not receive data in Phase 1, but could receive Phase 2 data
      */
     override fun onNFCDataReceived(jsonData: String) {
         try {
-            // Parse the received data to determine what type it is
             val receivedData = org.json.JSONObject(jsonData)
             val dataType = receivedData.optString("type")
 
             when (dataType) {
                 "payment_confirmation" -> {
-                    // Received payment confirmation from sender
-                    Toast.makeText(
-                        requireContext(),
-                        "Payment confirmation received! Processing transaction...",
-                        Toast.LENGTH_LONG
-                    ).show()
-
-                    // Process the payment confirmation
-                    processPaymentConfirmation(receivedData)
+                    // Received Phase 2 payment confirmation - process it
+                    handlePhase2PaymentConfirmation(receivedData)
                 }
                 else -> {
                     Toast.makeText(
@@ -107,20 +120,36 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     }
 
     /**
-     * Process the payment confirmation received from sender
+     * Handle Phase 2 payment confirmation received directly in RequestMoneyFragment
+     * This happens if the user stays on this screen during both phases
      */
-    private fun processPaymentConfirmation(confirmationData: org.json.JSONObject) {
-        // TODO: Implement actual transaction processing
-        // This will be implemented in Phase 4 of the plan
+    @SuppressLint("SetTextI18n")
+    private fun handlePhase2PaymentConfirmation(confirmationData: org.json.JSONObject) {
+        try {
+            // Extract transaction data
+            val senderName = confirmationData.optString("sender_name")
+            val amount = confirmationData.optLong("amount", -1L)
 
-        Toast.makeText(
-            requireContext(),
-            "Transaction completed successfully!",
-            Toast.LENGTH_LONG
-        ).show()
+            if (amount > 0) {
+                val displayName = if (senderName.isNotEmpty()) senderName else "Unknown"
+                Toast.makeText(
+                    requireContext(),
+                    "Payment of ${nl.tudelft.trustchain.common.eurotoken.TransactionRepository.prettyAmount(amount)} received from $displayName!",
+                    Toast.LENGTH_LONG
+                ).show()
 
-        // Navigate to transaction history
-        findNavController().navigate(R.id.action_requestMoneyFragment_to_transactionsFragment)
+                binding.txtRequestData.text = "Payment received successfully!"
+
+                // Navigate to transaction history
+                findNavController().navigate(R.id.action_requestMoneyFragment_to_transactionsFragment)
+            } else {
+                Toast.makeText(requireContext(), "Invalid payment confirmation", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            logger.error { "Error processing payment confirmation: ${e.message}" }
+            Toast.makeText(requireContext(), "Failed to process payment: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**

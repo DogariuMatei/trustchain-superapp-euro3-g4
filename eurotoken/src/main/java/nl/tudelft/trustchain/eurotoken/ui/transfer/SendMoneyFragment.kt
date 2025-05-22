@@ -30,6 +30,15 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         )
     }
 
+    // Store transaction parameters for Phase 2 execution
+    private lateinit var transactionParams: TransactionParams
+
+    private data class TransactionParams(
+        val recipientPublicKey: String,
+        val amount: Long,
+        val contactName: String
+    )
+
     override fun onViewCreated(
         view: View,
         savedInstanceState: Bundle?
@@ -39,6 +48,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         val publicKey = requireArguments().getString(ARG_PUBLIC_KEY)!!
         val amount = requireArguments().getLong(ARG_AMOUNT)
         val name = requireArguments().getString(ARG_NAME)!!
+
+        // Store transaction parameters
+        transactionParams = TransactionParams(publicKey, amount, name)
 
         val key = defaultCryptoProvider.keyFromPublicBin(publicKey.hexToBytes())
         val contact = ContactStore.getInstance(view.context).getContactFromPublicKey(key)
@@ -94,9 +106,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         // Display trust score information
         displayTrustScore(publicKey)
 
-        // Handle Send button - This will trigger Phase 2 NFC transaction
+        // Handle Send button - This prepares Phase 2 NFC transaction (NO blockchain transaction yet)
         binding.btnSend.setOnClickListener {
-            handleSendTransaction(publicKey, amount, name)
+            initiatePhase2Transaction()
         }
     }
 
@@ -150,13 +162,13 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     }
 
     /**
-     * Handle the send transaction process - Phase 2 NFC transaction
+     * Initiate Phase 2 NFC transaction - Only prepare data, don't create blockchain transaction yet
      */
-    private fun handleSendTransaction(publicKey: String, amount: Long, contactName: String) {
+    private fun initiatePhase2Transaction() {
         // Add contact if requested
         val newName = binding.newContactName.text.toString()
         if (addContact && newName.isNotEmpty()) {
-            val key = defaultCryptoProvider.keyFromPublicBin(publicKey.hexToBytes())
+            val key = defaultCryptoProvider.keyFromPublicBin(transactionParams.recipientPublicKey.hexToBytes())
             ContactStore.getInstance(requireContext())
                 .addContact(key, newName)
         }
@@ -177,7 +189,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             transactionRepository.getMyVerifiedBalance()
         }
 
-        if (currentBalance < amount) {
+        if (currentBalance < transactionParams.amount) {
             Toast.makeText(
                 requireContext(),
                 "Insufficient balance",
@@ -186,19 +198,22 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             return
         }
 
-        // Create the transaction data for Phase 2
-        createAndSendTransaction(publicKey, amount, contactName)
+        // Create Phase 2 data and initiate NFC (NO blockchain transaction yet)
+        prepareAndSendPhase2Data()
     }
 
     /**
-     * Create transaction data and initiate NFC transmission - Phase 2
+     * Create actual transaction and send via NFC - Phase 2 (OFFLINE)
      */
-    private fun createAndSendTransaction(recipientPublicKey: String, amount: Long, contactName: String) {
+    private fun prepareAndSendPhase2Data() {
         try {
-            // Create offline transaction
-            val success = transactionRepository.sendTransferProposal(recipientPublicKey.hexToBytes(), amount)
+            // Create the actual blockchain transaction BEFORE NFC transmission
+            val transactionBlock = transactionRepository.sendTransferProposalSync(
+                transactionParams.recipientPublicKey.hexToBytes(),
+                transactionParams.amount
+            )
 
-            if (!success) {
+            if (transactionBlock == null) {
                 Toast.makeText(
                     requireContext(),
                     "Failed to create transaction",
@@ -207,7 +222,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 return
             }
 
-            // Create payment confirmation data for NFC transmission
+            // Create payment confirmation with ACTUAL transaction data for offline processing
             val myPeer = transactionRepository.trustChainCommunity.myPeer
             val senderContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(myPeer.publicKey)
 
@@ -215,12 +230,16 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             paymentConfirmation.put("type", "payment_confirmation")
             paymentConfirmation.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
             paymentConfirmation.put("sender_name", senderContact?.name ?: "")
-            paymentConfirmation.put("recipient_public_key", recipientPublicKey)
-            paymentConfirmation.put("amount", amount)
+            paymentConfirmation.put("recipient_public_key", transactionParams.recipientPublicKey)
+            paymentConfirmation.put("amount", transactionParams.amount)
             paymentConfirmation.put("timestamp", System.currentTimeMillis())
-            // TODO: Add actual transaction block data in Phase 4
 
-            // Initiate NFC transmission
+            // Include actual transaction block data for offline processing
+            paymentConfirmation.put("block_hash", transactionBlock.calculateHash().toHex())
+            paymentConfirmation.put("sequence_number", transactionBlock.sequenceNumber)
+            paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)
+
+            // Initiate NFC transmission with actual transaction data
             Toast.makeText(
                 requireContext(),
                 "Hold your phone near the recipient's phone to complete the transaction",
@@ -247,7 +266,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             }
 
         } catch (e: Exception) {
-            logger.error { "Error creating transaction: ${e.message}" }
+            logger.error { "Error creating offline transaction: ${e.message}" }
             Toast.makeText(
                 requireContext(),
                 "Error creating transaction: ${e.message}",
