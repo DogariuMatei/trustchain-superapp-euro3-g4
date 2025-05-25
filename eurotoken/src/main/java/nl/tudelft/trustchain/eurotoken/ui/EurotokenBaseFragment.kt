@@ -203,6 +203,11 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
                 true
             }
 
+            R.id.utxoTransactionsMenuItem -> {
+                findNavController().navigate(R.id.utxoTransactionsFragment)
+                true
+            }
+
             else -> super.onOptionsItemSelected(item)
         }
     }

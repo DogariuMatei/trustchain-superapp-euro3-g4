@@ -23,31 +23,31 @@ class UTXOStore(context: Context) {
     /**
      * Retrieve all [UTXO]s from the database.
      */
-    fun getAllUTXOs(): List<UTXO> {
-        return database.dbUtxoQueries.getAllUTXOs(utxoMapper).executeAsList()
+    fun getAllUtxos(): List<UTXO> {
+        return database.dbUtxoQueries.getAllUtxos(utxoMapper).executeAsList()
     }
 
     /**
      * Retrieve the [UTXO]s of a specific public key.
      */
     fun getUtxosByOwner(owner: ByteArray): List<UTXO> {
-        return database.dbUtxoQueries.getUTXOsByOwner(owner, utxoMapper).executeAsList()
+        return database.dbUtxoQueries.getUtxosByOwner(owner, utxoMapper).executeAsList()
     }
 
     fun getUtxosById(txId: String): List<UTXO> {
-        return database.dbUtxoQueries.getUTXOsByOwner(txId.hexToBytes(), utxoMapper).executeAsList()
+        return database.dbUtxoQueries.getUtxosById(txId.hexToBytes(), utxoMapper).executeAsList()
     }
 
     fun getUtxo(txId: String, txIndex: Int): UTXO? {
-        return database.dbUtxoQueries.getUTXO(txId.hexToBytes(), txIndex.toLong(), utxoMapper).executeAsOneOrNull()
+        return database.dbUtxoQueries.getUtxo(txId.hexToBytes(), txIndex.toLong(), utxoMapper).executeAsOneOrNull()
     }
 
     fun addUtxo(utxo: UTXO) {
-        database.dbUtxoQueries.addUTXO(utxo.txId.hexToBytes(), utxo.txIndex.toLong(), utxo.amount.toLong(), utxo.owner)
+        database.dbUtxoQueries.addUtxo(utxo.txId.hexToBytes(), utxo.txIndex.toLong(), utxo.amount.toLong(), utxo.owner)
     }
 
     fun removeUtxo(txId: String, txIndex: Int) {
-        database.dbUtxoQueries.removeUTXO(txId.hexToBytes(), txIndex.toLong())
+        database.dbUtxoQueries.removeUtxo(txId.hexToBytes(), txIndex.toLong())
     }
 
     /**

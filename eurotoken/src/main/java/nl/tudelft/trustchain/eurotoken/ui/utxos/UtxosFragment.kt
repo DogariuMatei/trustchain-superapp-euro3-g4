@@ -14,6 +14,7 @@ import com.mattskala.itemadapter.ItemAdapter
 import kotlinx.coroutines.delay
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.R
+import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxoTransactionsBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxosBinding
 import nl.tudelft.trustchain.eurotoken.entity.UTXO
@@ -23,8 +24,10 @@ import nl.tudelft.trustchain.eurotoken.entity.UTXO
  * Use the [UtxosFragment.newInstance] factory method to
  * create an instance of this fragment.
  */
-class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxos) {
-    private val binding by viewBinding(FragmentUtxosBinding::bind)
+// TODO: Change to fragment_utxos after aggregating txIds
+class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxo_transactions) {
+    /*private val binding by viewBinding(FragmentUtxosBinding::bind)*/
+    private val binding by viewBinding(FragmentUtxoTransactionsBinding::bind)
 
     private val adapter = ItemAdapter()
 
@@ -40,7 +43,7 @@ class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxos) {
         lifecycleScope.launchWhenResumed {
             val items =
                 // TODO: Change this to use *getUtxosById* since this will be part of a second page for the TxIndexs
-                utxoStore.getAllUTXOs()
+                utxoStore.getAllUtxos()
                     .map { Utxo: UTXO -> UtxoItem(Utxo) }
             adapter.updateItems(items)
             adapter.notifyDataSetChanged()
@@ -54,9 +57,17 @@ class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxos) {
     ) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.utxosRecyclerView.adapter = adapter
+        /*binding.utxosRecyclerView.adapter = adapter
         binding.utxosRecyclerView.layoutManager = LinearLayoutManager(context)
         binding.utxosRecyclerView.addItemDecoration(
+            DividerItemDecoration(
+                context,
+                LinearLayout.VERTICAL
+            )
+        )*/
+        binding.utxoTransactionsRecyclerView.adapter = adapter
+        binding.utxoTransactionsRecyclerView.layoutManager = LinearLayoutManager(context)
+        binding.utxoTransactionsRecyclerView.addItemDecoration(
             DividerItemDecoration(
                 context,
                 LinearLayout.VERTICAL

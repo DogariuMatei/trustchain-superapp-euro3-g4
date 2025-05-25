@@ -4,6 +4,7 @@ import android.view.View
 import com.mattskala.itemadapter.ItemLayoutRenderer
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.ItemUtxoBinding
+import nl.tudelft.trustchain.eurotoken.databinding.ItemUtxoTransactionBinding
 import nl.tudelft.trustchain.eurotoken.entity.UTXO
 
 /**
@@ -16,9 +17,13 @@ class UtxoItemRenderer : ItemLayoutRenderer<UtxoItem, View>(
         item: UtxoItem,
         view: View
     ) = with(view) {
-        val binding = ItemUtxoBinding.bind(view)
+        // TODO: Revert this change once UTXOs are aggregated into transactions and can be displayed as such
+        /*val binding = ItemUtxoBinding.bind(view)
         binding.txtTxIndex.text = item.utxo.txIndex.toString()
-        binding.txtChildAmount.text = "€" + item.utxo.amount.toString()
+        binding.txtChildAmount.text = "€" + item.utxo.amount.toString()*/
+        val binding = ItemUtxoTransactionBinding.bind(view)
+        binding.txtGroupTxId.text = item.utxo.txIndex.toString()
+        binding.txtSumAmount.text = "€" + item.utxo.amount.toString()
     }
 
     override fun getLayoutResourceId(): Int {

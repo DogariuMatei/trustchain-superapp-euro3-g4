@@ -8,7 +8,6 @@
     android:padding="12dp"
     android:background="?selectableItemBackground">
 
-    <!-- collapse/expand arrow -->
     <ImageView
         android:id="@+id/ivExpandToggle"
         android:layout_width="24dp"
@@ -18,7 +17,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
-    <!-- summed amount -->
     <TextView
         android:id="@+id/txtSumAmount"
         android:layout_width="wrap_content"
@@ -29,7 +27,6 @@
         app:layout_constraintStart_toEndOf="@id/ivExpandToggle"
         app:layout_constraintTop_toTopOf="parent"/>
 
-    <!-- txId (truncated) -->
     <TextView
         android:id="@+id/txtGroupTxId"
         android:layout_width="0dp"
@@ -42,7 +39,6 @@
         app:layout_constraintEnd_toStartOf="@id/txtCount"
         app:layout_constraintBaseline_toBaselineOf="@id/txtSumAmount"/>
 
-    <!-- count of UTXOs in this txId -->
     <TextView
         android:id="@+id/txtCount"
         android:layout_width="wrap_content"

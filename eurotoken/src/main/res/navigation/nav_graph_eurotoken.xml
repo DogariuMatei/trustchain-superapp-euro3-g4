@@ -70,6 +70,10 @@
         android:name="nl.tudelft.trustchain.eurotoken.ui.trustscores.TrustScoresFragment"
         android:label="Trust Scores database" />
     <fragment
+        android:id="@+id/utxoTransactionsFragment"
+        android:name="nl.tudelft.trustchain.eurotoken.ui.utxos.UtxosFragment"
+        android:label="Utxo database" />
+    <fragment
         android:id="@+id/destroyMoneyFragment"
         android:name="nl.tudelft.trustchain.eurotoken.ui.exchange.DestroyMoneyFragment"
         android:label="Selling EuroToken">
