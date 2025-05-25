@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/groupRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="12dp"
+    android:background="?selectableItemBackground">
+
+    <!-- collapse/expand arrow -->
+    <ImageView
+        android:id="@+id/ivExpandToggle"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_baseline_expand_more_24"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
+    <!-- summed amount -->
+    <TextView
+        android:id="@+id/txtSumAmount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="123€"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toEndOf="@id/ivExpandToggle"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <!-- txId (truncated) -->
+    <TextView
+        android:id="@+id/txtGroupTxId"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:ellipsize="middle"
+        android:lines="1"
+        android:text="a1b2c3…9z0"
+        android:textSize="14sp"
+        app:layout_constraintStart_toEndOf="@id/txtSumAmount"
+        app:layout_constraintEnd_toStartOf="@id/txtCount"
+        app:layout_constraintBaseline_toBaselineOf="@id/txtSumAmount"/>
+
+    <!-- count of UTXOs in this txId -->
+    <TextView
+        android:id="@+id/txtCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="(3)"
+        android:textSize="14sp"
+        android:textColor="#777"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBaseline_toBaselineOf="@id/txtSumAmount"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

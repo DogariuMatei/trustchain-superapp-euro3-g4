@@ -26,6 +26,7 @@ import nl.tudelft.trustchain.common.ui.BaseFragment
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
+import nl.tudelft.trustchain.eurotoken.db.UTXOStore
 
 open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(contentLayoutId) {
     protected val logger = KotlinLogging.logger {}
@@ -35,6 +36,10 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
      */
     protected val trustStore by lazy {
         TrustStore.getInstance(requireContext())
+    }
+
+    protected val utxoStore by lazy {
+        UTXOStore.getInstance(requireContext())
     }
 
     protected val transactionRepository by lazy {
@@ -69,6 +74,7 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
         @Suppress("DEPRECATION")
         setHasOptionsMenu(true)
         trustStore.createContactStateTable()
+        utxoStore.createContactStateTable()
 
         lifecycleScope.launchWhenResumed {
         }

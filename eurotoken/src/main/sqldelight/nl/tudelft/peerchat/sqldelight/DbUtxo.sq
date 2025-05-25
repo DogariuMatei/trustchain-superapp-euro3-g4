@@ -1,0 +1,30 @@
+createContactStateTable:
+CREATE TABLE IF NOT EXISTS UTXO (
+    txId BLOB NOT NULL,
+    txIndex INTEGER NOT NULL DEFAULT 0,
+    amount INTEGER NOT NULL DEFAULT 0,
+    owner BLOB NOT NULL,
+    PRIMARY KEY (txId, txIndex)
+);
+
+getAllUtxos:
+SELECT * FROM UTXO;
+
+getUtxosById:
+SELECT * FROM UTXO WHERE txId = ?;
+
+addUtxo:
+INSERT INTO UTXO (txId, txIndex, amount, owner)
+VALUES (?, ?, ?, ?);
+
+removeUtxo:
+DELETE FROM UTXO WHERE txId = ? AND txIndex = ?;
+
+getUtxosByOwner:
+SELECT * FROM UTXO WHERE owner = ?;
+
+getUtxo:
+SELECT * FROM UTXO WHERE txId = ? AND txIndex = ?;
+
+-- deleteTable:
+-- DROP TABLE IF EXISTS UTXO;
