@@ -26,6 +26,7 @@ class NFCUtils(private val context: Context) {
 
 
     fun isNFCAvailable(): Boolean {
+        // TODO THIS MIGHT ALWAYS RETURN FALSE !!!!!!!!!!!!!!!!!!!! IDK THO
         return nfcAdapter != null && nfcAdapter.isEnabled
     }
 

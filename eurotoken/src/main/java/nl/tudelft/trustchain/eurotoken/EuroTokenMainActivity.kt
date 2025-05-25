@@ -3,12 +3,14 @@ package nl.tudelft.trustchain.eurotoken
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import nl.tudelft.trustchain.common.BaseActivity
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import nl.tudelft.trustchain.common.util.NFCUtils
-
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteCapable {
     override val navigationGraph = R.navigation.nav_graph_eurotoken
     override val bottomNavigationMenu = R.menu.eurotoken_navigation_menu
@@ -33,6 +35,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
     /**
      * Handle NFC intents
      */
+
     private fun handleNFCIntent(intent: Intent) {
         // Check if it's an NFC intent
         if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED ||

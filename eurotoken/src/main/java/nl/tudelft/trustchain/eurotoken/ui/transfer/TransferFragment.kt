@@ -236,7 +236,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     /**
-     * Navigate to NFC request waiting screen
+     * Navigate to NFC request waiting screen, with transaction data in args
      */
     private fun navigateToNFCRequestScreen(paymentRequestData: String) {
         val args = Bundle()
@@ -366,6 +366,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
 
     /**
      * Process offline transaction data received via NFC
+     * Here is where the magic will happen
      */
     private fun processOfflineTransaction(
         senderPublicKey: String,
