@@ -13,13 +13,13 @@ import nl.tudelft.trustchain.eurotoken.databinding.FragmentRequestMoneyBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@SuppressLint("SetTextI18n")
 class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_money) {
     private val binding by viewBinding(FragmentRequestMoneyBinding::bind)
 
     private var paymentRequestData: String? = null
     private var isPhase1Complete = false
 
-    @SuppressLint("SetTextI18n")
     override fun onViewCreated(
         view: View,
         savedInstanceState: Bundle?
@@ -52,7 +52,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     /**
      * Start Phase 1 NFC transmission of payment request
      */
-    @SuppressLint("SetTextI18n")
+
     private fun startPhase1NFCTransmission() {
         paymentRequestData?.let { data ->
             Toast.makeText(
@@ -88,7 +88,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     /**
      * Allow user to retry Phase 1 transmission
      */
-    @SuppressLint("SetTextI18n")
+
     private fun retryPhase1Transmission() {
         binding.btnContinue.text = "Retry Request"
         binding.btnContinue.setOnClickListener {
@@ -126,7 +126,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
      * Handle Phase 2 payment confirmation received directly in RequestMoneyFragment
      * This happens if the user stays on this screen during both phases
      */
-    @SuppressLint("SetTextI18n")
+
     private fun handlePhase2PaymentConfirmation(confirmationData: org.json.JSONObject) {
         try {
             // Extract transaction data

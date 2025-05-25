@@ -32,6 +32,7 @@ import org.json.JSONObject
 
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@SuppressLint("SetTextI18n")
 class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_euro) {
     private val binding by viewBinding(FragmentTransferEuroBinding::bind)
 
@@ -67,7 +68,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         }
     }
 
-    @SuppressLint("SetTextI18n")
     private fun setupUI() {
         val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
         val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
@@ -87,7 +87,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         updateButtonStates()
     }
 
-    @SuppressLint("SetTextI18n")
     private fun updateBalanceDisplay() {
         val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
         val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
@@ -151,7 +150,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Update button text and states based on current phase
      */
-    @SuppressLint("SetTextI18n")
     private fun updateButtonStates() {
         when (currentPhase) {
             TransactionPhase.IDLE -> {
@@ -200,7 +198,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         ).show()
     }
 
-    @SuppressLint("SetTextI18n")
     private fun addName() {
         val newName = binding.edtMissingName.text.toString()
         if (newName.isNotEmpty()) {
@@ -315,7 +312,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
      * Handle Phase 2 - Payment Confirmation received from Sender
      * Process the actual transaction data for offline processing
      */
-    @SuppressLint("SetTextI18n")
     private fun handlePhase2PaymentConfirmation(paymentConfirmation: JSONObject) {
         try {
             // Extract transaction data
@@ -425,7 +421,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Activate Phase 2 NFC receive mode (called from RequestMoneyFragment)
      */
-    @SuppressLint("SetTextI18n")
+
     fun activatePhase2Receive() {
         currentPhase = TransactionPhase.WAITING_PHASE2
         updateButtonStates()
