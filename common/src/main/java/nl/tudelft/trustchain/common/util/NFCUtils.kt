@@ -37,6 +37,7 @@ class NFCUtils(private val context: Context) {
         Log.d(TAG, "NFC adapter exists: true, NFC enabled: $isEnabled")
 
         return isEnabled
+//        return true
     }
 
     /**

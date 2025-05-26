@@ -3,13 +3,16 @@ package nl.tudelft.trustchain.eurotoken
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import nl.tudelft.trustchain.common.BaseActivity
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import nl.tudelft.trustchain.common.util.NFCUtils
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteCapable {
     override val navigationGraph = R.navigation.nav_graph_eurotoken
     override val bottomNavigationMenu = R.menu.eurotoken_navigation_menu
@@ -25,7 +28,6 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
         super.onCreate(savedInstanceState)
         Log.e(TAG, "onCreate called")
 
-        // Handle NFC intent if app was launched via NFC
         handleNFCIntent(intent)
     }
 
@@ -34,7 +36,6 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
         Log.e(TAG, "onNewIntent called with action: ${intent?.action}")
 
         if (intent != null) {
-            // Set this as the current intent
             setIntent(intent)
             handleNFCIntent(intent)
         }
@@ -42,26 +43,10 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
     override fun onResume() {
         super.onResume()
-        Log.e(TAG, "onResume called")
-
-        // Enable NFC reading when activity is resumed
-        if (nfcUtils.isNFCAvailable()) {
-            nfcUtils.enableNFCReading(this)
-            Log.e(TAG, "NFC reading enabled in onResume")
-        } else {
-            Log.w(TAG, "NFC not available in onResume")
-        }
     }
 
     override fun onPause() {
         super.onPause()
-        Log.e(TAG, "onPause called")
-
-        // Disable NFC reading when activity is paused
-        if (nfcUtils.isNFCAvailable()) {
-            nfcUtils.disableNFCReading(this)
-            Log.e(TAG, "NFC reading disabled in onPause")
-        }
     }
 
     /**
