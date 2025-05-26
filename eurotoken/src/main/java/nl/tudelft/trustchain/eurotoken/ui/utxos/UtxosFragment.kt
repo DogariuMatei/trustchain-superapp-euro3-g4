@@ -17,7 +17,7 @@ import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxoTransactionsBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxosBinding
-import nl.tudelft.trustchain.eurotoken.entity.UTXO
+import nl.tudelft.trustchain.common.eurotoken.UTXO
 
 /**
  * A simple [Fragment] subclass.
@@ -44,7 +44,7 @@ class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxo_transactions)
             val items =
                 // TODO: Change this to use *getUtxosById* since this will be part of a second page for the TxIndexs
                 utxoStore.getAllUtxos()
-                    .map { Utxo: UTXO -> UtxoItem(Utxo) }
+                    .map { utxo: UTXO -> UtxoItem(utxo) }
             adapter.updateItems(items)
             adapter.notifyDataSetChanged()
             delay(1000L)

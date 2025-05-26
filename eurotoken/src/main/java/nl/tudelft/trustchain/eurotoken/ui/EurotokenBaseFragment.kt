@@ -26,7 +26,7 @@ import nl.tudelft.trustchain.common.ui.BaseFragment
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
-import nl.tudelft.trustchain.eurotoken.db.UTXOStore
+import nl.tudelft.trustchain.common.eurotoken.UTXOStore
 
 open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(contentLayoutId) {
     protected val logger = KotlinLogging.logger {}

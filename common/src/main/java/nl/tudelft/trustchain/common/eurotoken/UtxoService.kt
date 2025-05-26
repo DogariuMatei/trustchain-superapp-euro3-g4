@@ -1,10 +1,11 @@
 /*
-package nl.tudelft.trustchain.common.eurotoken.utxo
+package nl.tudelft.trustchain.common.eurotoken
 
-import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
+import android.util.Log
 import nl.tudelft.ipv8.attestation.trustchain.TrustChainCommunity
-import nl.tudelft.ipv8.attestation.trustchain.store.TrustChainStore
 import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
+import nl.tudelft.trustchain.eurotoken.db.UTXOStore
+import nl.tudelft.trustchain.eurotoken.entity.UTXO
 import java.security.MessageDigest
 
 // TODO: Merkle-Patricia Trie interface for inclusion and removal proofs
@@ -19,30 +20,37 @@ interface MerklePatriciaTrie {
 }*//*
 
 
-// 4. Service integrating Bloom filter + MPT
+
+
+
 class UTXOService(
     //trie: MerklePatriciaTrie,
     private val trustChainCommunity: TrustChainCommunity,
-    private val store: TrustChainStore,
+    private val store: UTXOStore,
     expectedUTXOs: Int = 2_000,
     falsePositiveRate: Float = 0.01f
 ) {
-    private var trieImpl : HashMap<ByteArray, UTXO> = HashMap<ByteArray, UTXO> ()
+    //private var trieImpl : HashMap<ByteArray, UTXO> = HashMap<ByteArray, UTXO> ()
     //private var currentRoot: ByteArray = trieImpl.getRootHash()
     private var bloom = BloomFilter(expectedUTXOs, falsePositiveRate)
 
-    */
-/** Add a new UTXO to local state and update commitments *//*
+*/
+/*
+* Add a new UTXO to local state and update commitments
+*//*
+
 
     fun addUTXO(utxo: UTXO) {
-        val key = utxo.id.toBytes()
-        trieImpl.put(key, utxo)
+        val key = utxo.txId
+        // trieImpl.put(key, utxo)
         bloom.add(key)
         //currentRoot = trieImpl.getRootHash()
     }
+*/
+/*
+* Spend (remove) an existing UTXO
+*//*
 
-    */
-/** Spend (remove) an existing UTXO *//*
 
     fun removeUTXO(id: UTXOId) {
         val key = id.toBytes()
@@ -51,16 +59,21 @@ class UTXOService(
         //currentRoot = trieImpl.getRootHash()
     }
 
-    */
-/** Build a transfer with inputs, outputs, bloom, proofs, and root *//*
+    fun getMyBalance(): Long {
+    }
+*/
+/*
+* Build a transfer with inputs, outputs, bloom, proofs, and root
+*//*
 
     fun buildTransferProposal(
         recipient: ByteArray,
         amount: Long,
-        gatherUTXOs: () -> List<UTXO>
     ): TransactionRepository {
+        Log.d("BuildUtxoProposal", "sending amount: $amount")
         // 1) gather available UTXOs
         val utxos = gatherUTXOs()
+
         // 2) select coins (naive: first-fit)
         val inputs = mutableListOf<UTXO>()
         var sum = 0L
@@ -94,9 +107,10 @@ class UTXOService(
             rootHash = currentRoot
         )
     }
-
-    */
-/** On receive: validate bloom, proofs, then apply state changes and checkpoint root *//*
+*/
+/*
+* On receive: validate bloom, proofs, then apply state changes and checkpoint root
+*//*
 
     fun validateAndCommit(proposal: TransactionRepository.TransferProposal, peerPub: ByteArray): Boolean {
         // quick reject

@@ -1,4 +1,4 @@
-package nl.tudelft.trustchain.eurotoken.entity
+package nl.tudelft.trustchain.common.eurotoken
 
 // TODO: Add Timestamp
 data class UTXO(

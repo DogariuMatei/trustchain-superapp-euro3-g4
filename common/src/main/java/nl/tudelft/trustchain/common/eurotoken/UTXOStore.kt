@@ -1,15 +1,12 @@
-package nl.tudelft.trustchain.eurotoken.db
+package nl.tudelft.trustchain.common.eurotoken
 
 import android.content.Context
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
-import nl.tudelft.eurotoken.sqldelight.Database
-import nl.tudelft.trustchain.eurotoken.entity.UTXO
+import nl.tudelft.common.sqldelight.Database
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.ipv8.util.hexToBytes
 
-class UTXOStore(context: Context) {
-    private val driver = AndroidSqliteDriver(Database.Schema, context, "eurotoken.db")
-    private val database = Database(driver)
+open class UTXOStore(val database: Database) {
 
     private val utxoMapper = {
             txId: ByteArray,
@@ -61,11 +58,14 @@ class UTXOStore(context: Context) {
         private lateinit var instance: UTXOStore
 
         fun getInstance(context: Context): UTXOStore {
-            if (!::instance.isInitialized) {
-                instance = UTXOStore(context)
-                instance.createContactStateTable()
+            if (!Companion::instance.isInitialized) {
+                instance = SqlUtxoStore(context)
             }
             return instance
         }
     }
 }
+
+class SqlUtxoStore(context: Context) : UTXOStore(
+    Database(AndroidSqliteDriver(Database.Schema, context, "common.db"))
+)
