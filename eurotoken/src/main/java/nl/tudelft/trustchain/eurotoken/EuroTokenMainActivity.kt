@@ -44,8 +44,10 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
             // If we have pending write data, write to the tag
             pendingNFCWrite?.let { pendingWrite ->
-                val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+                logger.log("THERE IS A PENDING WRITE -> WRITE JSON TO NFC TAG")
+                val tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
                 if (tag != null) {
+                    logger.log("THERE IS A VALID TAG DETECTED -> WRITE JSON TO NFC TAG")
                     val success = nfcUtils.writeJSONToTag(tag, pendingWrite.jsonData)
                     pendingWrite.callback(success)
                     pendingNFCWrite = null
@@ -58,7 +60,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
                     return
                 }
             }
-
+            logger.log("TRYING TO READ FROM NFC TAG")
             // Otherwise, try to read from the tag and pass to current fragment
             getCurrentNFCFragment()?.handleIncomingNFCIntent(intent)
         }
@@ -79,10 +81,11 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
     override fun setupNFCWrite(jsonData: String, onResult: (Boolean) -> Unit) {
         if (!nfcUtils.isNFCAvailable()) {
             Toast.makeText(this, "NFC is not available or disabled", Toast.LENGTH_SHORT).show()
+            logger.log("NFC NOT AVAILABLE FOR SOME REASON")
             onResult(false)
             return
         }
-
+        logger.log("Pending to write to NFC")
         // Store the data to write when tag is detected
         pendingNFCWrite = PendingNFCWrite(jsonData, onResult)
 

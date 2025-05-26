@@ -27,7 +27,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
         super.onViewCreated(view, savedInstanceState)
 
         paymentRequestData = requireArguments().getString(ARG_DATA)!!
-
+        logger.error { "Request Fragment got args: ${paymentRequestData}" }
         // Hide any QR-related UI elements
         binding.qr.visibility = View.GONE
 

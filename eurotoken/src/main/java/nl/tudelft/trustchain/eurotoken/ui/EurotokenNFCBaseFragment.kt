@@ -140,12 +140,13 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
                     if (success) {
                         updateNFCState(NFCState.SUCCESS)
                         onResult(true)
-
+                        logger.error("Sending NFC payload SUCCESS")
                         // Auto-dismiss success dialog after delay
                         Handler(Looper.getMainLooper()).postDelayed({
                             dismissNFCDialog()
                         }, 2000)
                     } else {
+                        logger.error("Sending NFC payload FAILED in NFCBaseFragment")
                         updateNFCState(NFCState.ERROR)
                         onResult(false)
                     }

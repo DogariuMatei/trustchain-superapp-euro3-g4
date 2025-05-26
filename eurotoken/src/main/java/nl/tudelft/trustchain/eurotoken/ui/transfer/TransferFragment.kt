@@ -131,6 +131,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         binding.btnRequest.setOnClickListener {
             val amount = getAmount(binding.edtAmount.text.toString())
             if (amount > 0) {
+                logger.error { "Payment Request Init success" }
                 initiatePaymentRequest(amount)
             } else {
                 Toast.makeText(requireContext(), "Please specify a positive amount", Toast.LENGTH_SHORT).show()
@@ -228,6 +229,8 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         paymentRequest.put("requester_name", contact?.name ?: "")
         paymentRequest.put("timestamp", System.currentTimeMillis())
 
+        logger.error { "Transfer to request fragment success" }
+        logger.error { "Payload: ${paymentRequest.toString()}" }
         // Navigate to NFC waiting screen for payment request
         navigateToNFCRequestScreen(paymentRequest.toString())
     }
