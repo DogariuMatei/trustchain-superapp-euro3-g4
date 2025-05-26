@@ -18,6 +18,7 @@ import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxoTransactionsBindi
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxosBinding
 import nl.tudelft.trustchain.common.eurotoken.UTXO
+import nl.tudelft.trustchain.common.eurotoken.UTXOService
 
 /**
  * A simple [Fragment] subclass.
@@ -47,6 +48,8 @@ class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxo_transactions)
                     .map { utxo: UTXO -> UtxoItem(utxo) }
             adapter.updateItems(items)
             adapter.notifyDataSetChanged()
+
+            binding.txtBalance.text = UTXOService.prettyAmount(utxoService.getMyBalance())
             delay(1000L)
         }
     }

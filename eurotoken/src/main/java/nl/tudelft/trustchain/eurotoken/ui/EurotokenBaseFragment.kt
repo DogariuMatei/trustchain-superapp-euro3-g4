@@ -22,6 +22,7 @@ import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
 import nl.tudelft.trustchain.common.eurotoken.GatewayStore
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
+import nl.tudelft.trustchain.common.eurotoken.UTXOService
 import nl.tudelft.trustchain.common.ui.BaseFragment
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
@@ -40,6 +41,10 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
 
     protected val utxoStore by lazy {
         UTXOStore.getInstance(requireContext())
+    }
+
+    protected val utxoService by lazy {
+        UTXOService(getIpv8().getOverlay()!!, utxoStore)
     }
 
     protected val transactionRepository by lazy {
