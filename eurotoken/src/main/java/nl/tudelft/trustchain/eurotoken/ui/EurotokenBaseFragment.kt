@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.ui
 
+import android.util.Log
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -30,7 +31,6 @@ import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(contentLayoutId) {
-    protected val logger = KotlinLogging.logger {}
 
     /**
      * The [TrustStore] to retrieve trust scores from.

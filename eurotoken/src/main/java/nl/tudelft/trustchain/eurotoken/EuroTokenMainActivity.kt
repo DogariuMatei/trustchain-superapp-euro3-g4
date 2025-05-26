@@ -23,7 +23,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "onCreate called")
+        log.e(TAG, "onCreate called")
 
         // Handle NFC intent if app was launched via NFC
         handleNFCIntent(intent)
@@ -31,7 +31,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        Log.d(TAG, "onNewIntent called with action: ${intent?.action}")
+        log.e(TAG, "onNewIntent called with action: ${intent?.action}")
 
         if (intent != null) {
             // Set this as the current intent
@@ -42,12 +42,12 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "onResume called")
+        log.e(TAG, "onResume called")
 
         // Enable NFC reading when activity is resumed
         if (nfcUtils.isNFCAvailable()) {
             nfcUtils.enableNFCReading(this)
-            Log.d(TAG, "NFC reading enabled in onResume")
+            log.e(TAG, "NFC reading enabled in onResume")
         } else {
             Log.w(TAG, "NFC not available in onResume")
         }
@@ -55,12 +55,12 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
     override fun onPause() {
         super.onPause()
-        Log.d(TAG, "onPause called")
+        log.e(TAG, "onPause called")
 
         // Disable NFC reading when activity is paused
         if (nfcUtils.isNFCAvailable()) {
             nfcUtils.disableNFCReading(this)
-            Log.d(TAG, "NFC reading disabled in onPause")
+            log.e(TAG, "NFC reading disabled in onPause")
         }
     }
 
@@ -69,21 +69,21 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
      */
     private fun handleNFCIntent(intent: Intent) {
         val action = intent.action
-        Log.d(TAG, "handleNFCIntent called with action: $action")
+        log.e(TAG, "handleNFCIntent called with action: $action")
 
         // Check if it's an NFC intent
         if (action == NfcAdapter.ACTION_TAG_DISCOVERED ||
             action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
             action == NfcAdapter.ACTION_TECH_DISCOVERED) {
 
-            Log.d(TAG, "NFC intent detected")
+            log.e(TAG, "NFC intent detected")
 
             // If we have pending write data, write to the tag
             pendingNFCWrite?.let { pendingWrite ->
-                Log.d(TAG, "THERE IS A PENDING WRITE -> WRITE JSON TO NFC TAG")
+                log.e(TAG, "THERE IS A PENDING WRITE -> WRITE JSON TO NFC TAG")
                 val tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
                 if (tag != null) {
-                    Log.d(TAG, "THERE IS A VALID TAG DETECTED -> WRITE JSON TO NFC TAG")
+                    log.e(TAG, "THERE IS A VALID TAG DETECTED -> WRITE JSON TO NFC TAG")
                     val success = nfcUtils.writeJSONToTag(tag, pendingWrite.jsonData)
                     pendingWrite.callback(success)
                     pendingNFCWrite = null
@@ -99,16 +99,16 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
                 }
             }
 
-            Log.d(TAG, "TRYING TO READ FROM NFC TAG")
+            log.e(TAG, "TRYING TO READ FROM NFC TAG")
             // Otherwise, try to read from the tag and pass to current fragment
             getCurrentNFCFragment()?.let { fragment ->
-                Log.d(TAG, "Passing NFC intent to fragment: ${fragment.javaClass.simpleName}")
+                log.e(TAG, "Passing NFC intent to fragment: ${fragment.javaClass.simpleName}")
                 fragment.handleIncomingNFCIntent(intent)
             } ?: run {
                 Log.w(TAG, "No current NFC fragment found to handle intent")
             }
         } else {
-            Log.d(TAG, "Not an NFC intent, action: $action")
+            log.e(TAG, "Not an NFC intent, action: $action")
         }
     }
 
@@ -120,7 +120,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
         val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
         val nfcFragment = currentFragment as? EurotokenNFCBaseFragment
 
-        Log.d(TAG, "Current fragment: ${currentFragment?.javaClass?.simpleName}, is NFC capable: ${nfcFragment != null}")
+        log.e(TAG, "Current fragment: ${currentFragment?.javaClass?.simpleName}, is NFC capable: ${nfcFragment != null}")
 
         return nfcFragment
     }
@@ -129,7 +129,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
      * Setup NFC write operation (called from fragments)
      */
     override fun setupNFCWrite(jsonData: String, onResult: (Boolean) -> Unit) {
-        Log.d(TAG, "setupNFCWrite called with data length: ${jsonData.length}")
+        log.e(TAG, "setupNFCWrite called with data length: ${jsonData.length}")
 
         if (!nfcUtils.isNFCAvailable()) {
             Log.w(TAG, "NFC is not available for write operation")
@@ -138,7 +138,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
             return
         }
 
-        Log.d(TAG, "Setting up pending NFC write operation")
+        log.e(TAG, "Setting up pending NFC write operation")
         // Store the data to write when tag is detected
         pendingNFCWrite = PendingNFCWrite(jsonData, onResult)
 
@@ -148,7 +148,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
             Toast.LENGTH_LONG
         ).show()
 
-        Log.d(TAG, "Pending NFC write operation set up successfully")
+        log.e(TAG, "Pending NFC write operation set up successfully")
     }
 
     /**

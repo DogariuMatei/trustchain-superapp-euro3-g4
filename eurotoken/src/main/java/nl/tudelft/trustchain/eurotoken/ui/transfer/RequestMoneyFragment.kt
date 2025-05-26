@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
+import android.util.Log
 import android.annotation.SuppressLint
 import android.os.Build
 import android.os.Bundle
@@ -27,7 +28,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
         super.onViewCreated(view, savedInstanceState)
 
         paymentRequestData = requireArguments().getString(ARG_DATA)!!
-        logger.error { "Request Fragment got args: ${paymentRequestData}" }
+        log.e ("Request Fragment got args: ${paymentRequestData}")
         // Hide any QR-related UI elements
         binding.qr.visibility = View.GONE
 
@@ -150,7 +151,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
             }
 
         } catch (e: Exception) {
-            logger.error { "Error processing payment confirmation: ${e.message}" }
+            log.e ("Error processing payment confirmation: ${e.message}")
             Toast.makeText(requireContext(), "Failed to process payment: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }

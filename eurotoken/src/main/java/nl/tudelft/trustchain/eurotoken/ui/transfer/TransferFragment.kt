@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
+import android.util.Log
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -131,7 +132,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         binding.btnRequest.setOnClickListener {
             val amount = getAmount(binding.edtAmount.text.toString())
             if (amount > 0) {
-                logger.error { "Payment Request Init success" }
+                log.e("Payment Request Init success")
                 initiatePaymentRequest(amount)
             } else {
                 Toast.makeText(requireContext(), "Please specify a positive amount", Toast.LENGTH_SHORT).show()
@@ -229,8 +230,8 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         paymentRequest.put("requester_name", contact?.name ?: "")
         paymentRequest.put("timestamp", System.currentTimeMillis())
 
-        logger.error { "Transfer to request fragment success" }
-        logger.error { "Payload: ${paymentRequest.toString()}" }
+        log.e ("Transfer to request fragment success")
+        log.e ("Payload: ${paymentRequest.toString()}")
         // Navigate to NFC waiting screen for payment request
         navigateToNFCRequestScreen(paymentRequest.toString())
     }
@@ -357,7 +358,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             findNavController().navigate(R.id.transactionsFragment)
 
         } catch (e: Exception) {
-            logger.error { "Error processing payment confirmation: ${e.message}" }
+            log.e("Error processing payment confirmation: ${e.message}")
             updateNFCState(NFCState.ERROR)
             Toast.makeText(requireContext(), "Failed to process transaction: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -397,10 +398,10 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             // 3. Update local balance tracking
             // For this university project, the basic processing above should be sufficient
 
-            logger.info { "Processed offline transaction: $amount from $senderPublicKey (${senderName})" }
+            log.e ("Processed offline transaction: $amount from (${senderName})")
 
         } catch (e: Exception) {
-            logger.error { "Error in processOfflineTransaction: ${e.message}" }
+            log.e ("Error in processOfflineTransaction: ${e.message}")
             throw e
         }
     }

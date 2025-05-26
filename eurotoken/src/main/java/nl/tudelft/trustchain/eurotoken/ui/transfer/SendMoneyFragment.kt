@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
+import android.util.Log
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
@@ -120,7 +121,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
      */
     private fun displayTrustScore(publicKey: String) {
         val trustScore = trustStore.getScore(publicKey.toByteArray())
-        logger.info { "Trustscore: $trustScore" }
+        log.e ("Trustscore: $trustScore")
 
         if (trustScore != null) {
             if (trustScore >= TRUSTSCORE_AVERAGE_BOUNDARY) {
@@ -269,7 +270,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             }
 
         } catch (e: Exception) {
-            logger.error { "Error creating offline transaction: ${e.message}" }
+            log.e ("Error creating offline transaction: ${e.message}")
             Toast.makeText(
                 requireContext(),
                 "Error creating transaction: ${e.message}",
