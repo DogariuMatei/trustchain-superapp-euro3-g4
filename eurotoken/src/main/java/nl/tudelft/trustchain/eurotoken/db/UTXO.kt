@@ -20,8 +20,12 @@ class UTXO {
         }
     }
 
+    fun numTokensAvailable(): Int {
+        return generatedTokenIds.size
+    }
+
     fun sendTokens(numTokens: Int): ByteArray {
-        if (generatedTokenIds.size >= numTokens) {
+        if (numTokensAvailable() >= numTokens) {
             val tokensToSend = generatedTokenIds.take(numTokens).toMutableList()
             generatedTokenIds.removeAll(tokensToSend)
             val serialized = tokensToSend.joinToString(separator = ",")
