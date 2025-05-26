@@ -121,7 +121,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
      */
     private fun displayTrustScore(publicKey: String) {
         val trustScore = trustStore.getScore(publicKey.toByteArray())
-        log.e ("Trustscore: $trustScore")
+        Log.e ("SendMoneyFragment", "Trustscore: $trustScore")
 
         if (trustScore != null) {
             if (trustScore >= TRUSTSCORE_AVERAGE_BOUNDARY) {
@@ -270,7 +270,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             }
 
         } catch (e: Exception) {
-            log.e ("Error creating offline transaction: ${e.message}")
+            Log.e ("SendMoneyFragment", "Error creating offline transaction: ${e.message}")
             Toast.makeText(
                 requireContext(),
                 "Error creating transaction: ${e.message}",

@@ -28,7 +28,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
         super.onViewCreated(view, savedInstanceState)
 
         paymentRequestData = requireArguments().getString(ARG_DATA)!!
-        log.e ("Request Fragment got args: ${paymentRequestData}")
+        Log.e ("RequestMoneyFragment", "Request Fragment got args: ${paymentRequestData}")
         // Hide any QR-related UI elements
         binding.qr.visibility = View.GONE
 
@@ -151,7 +151,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
             }
 
         } catch (e: Exception) {
-            log.e ("Error processing payment confirmation: ${e.message}")
+            Log.e ("RequestMoneyFragment", "Error processing payment confirmation: ${e.message}")
             Toast.makeText(requireContext(), "Failed to process payment: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }

@@ -132,7 +132,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         binding.btnRequest.setOnClickListener {
             val amount = getAmount(binding.edtAmount.text.toString())
             if (amount > 0) {
-                log.e("Payment Request Init success")
+                Log.e("TransferFragment", "Payment Request Init success")
                 initiatePaymentRequest(amount)
             } else {
                 Toast.makeText(requireContext(), "Please specify a positive amount", Toast.LENGTH_SHORT).show()
@@ -230,8 +230,8 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         paymentRequest.put("requester_name", contact?.name ?: "")
         paymentRequest.put("timestamp", System.currentTimeMillis())
 
-        log.e ("Transfer to request fragment success")
-        log.e ("Payload: ${paymentRequest.toString()}")
+        Log.e("TransferFragment", "Transfer to request fragment success")
+        Log.e("TransferFragment", "Payload: ${paymentRequest.toString()}")
         // Navigate to NFC waiting screen for payment request
         navigateToNFCRequestScreen(paymentRequest.toString())
     }
@@ -358,7 +358,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             findNavController().navigate(R.id.transactionsFragment)
 
         } catch (e: Exception) {
-            log.e("Error processing payment confirmation: ${e.message}")
+            Log.e("TransferFragment", "Error processing payment confirmation: ${e.message}")
             updateNFCState(NFCState.ERROR)
             Toast.makeText(requireContext(), "Failed to process transaction: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -398,10 +398,10 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             // 3. Update local balance tracking
             // For this university project, the basic processing above should be sufficient
 
-            log.e ("Processed offline transaction: $amount from (${senderName})")
+            Log.e("TransferFragment", "Processed offline transaction: $amount from (${senderName})")
 
         } catch (e: Exception) {
-            log.e ("Error in processOfflineTransaction: ${e.message}")
+            Log.e("TransferFragment", "Error in processOfflineTransaction: ${e.message}")
             throw e
         }
     }
