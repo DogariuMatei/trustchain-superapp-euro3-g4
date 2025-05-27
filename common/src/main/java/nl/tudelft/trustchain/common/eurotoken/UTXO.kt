@@ -19,6 +19,14 @@ data class UTXO(
      */
     val owner: ByteArray
 ) {
+    /**
+     * Builds a string representation of the UTXO ID by combining txId and txIndex.
+     * Format: "txId:txIndex"
+     */
+    fun getUTXOIdString(): String {
+        return "$txId:$txIndex"
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

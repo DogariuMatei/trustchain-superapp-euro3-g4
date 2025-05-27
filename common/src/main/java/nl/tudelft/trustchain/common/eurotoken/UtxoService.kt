@@ -1,34 +1,24 @@
 package nl.tudelft.trustchain.common.eurotoken
 
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import nl.tudelft.ipv8.android.IPv8Android
 import nl.tudelft.ipv8.attestation.trustchain.TrustChainCommunity
-import nl.tudelft.ipv8.util.toHex
+import nl.tudelft.ipv8.util.*
 import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
-import nl.tudelft.trustchain.common.eurotoken.UTXOStore
-import nl.tudelft.trustchain.common.eurotoken.UTXO
 import java.lang.Math.abs
 import java.security.MessageDigest
 
-// TODO: Merkle-Patricia Trie interface for inclusion and removal proofs
-/*typealias Proof = List<ByteArray>
-interface MerklePatriciaTrie {
-    fun getRootHash(): ByteArray
-    fun put(key: ByteArray, utxo: UTXO)
-    fun remove(key: ByteArray)
-    fun getProof(key: ByteArray): Proof
-    fun verifyProof(root: ByteArray, key: ByteArray, proof: Proof): Boolean
-}*/
-
 class UTXOService(
-    //trie: MerklePatriciaTrie,
-    private val trustChainCommunity: TrustChainCommunity,
-    private val store: UTXOStore,
-    expectedUTXOs: Int = 2_000,
-    falsePositiveRate: Float = 0.01f
+     val trustChainCommunity: TrustChainCommunity,
+     val store: UTXOStore,
+     expectedUTXOs: Int = 2_000,
+     falsePositiveRate: Float = 0.01f
 ) {
-    //private var trieImpl : HashMap<ByteArray, UTXO> = HashMap<ByteArray, UTXO> ()
-    //private var currentRoot: ByteArray = trieImpl.getRootHash()
+    private val scope = CoroutineScope(Dispatchers.IO)
+
     private var bloom = BloomFilter(expectedUTXOs, falsePositiveRate)
 
     /*
@@ -64,12 +54,31 @@ class UTXOService(
 
     fun buildUtxoTransaction(
         recipient: ByteArray,
+        amount: Long
+    ): Boolean {
+        Log.d("buildUtxoTransaction", "sending amount: $amount")
+        if (getMyBalance() - amount < 0) {
+            return false
+        }
+        scope.launch {
+            buildUtxoTransactionSync(recipient, amount)
+        }
+        return true
+    }
+
+    fun buildUtxoTransactionSync(
+        recipient: ByteArray,
         amount: Long,
-    ): UTXOTransaction {
+    ): UTXOTransaction? {
         Log.d("BuildUtxoTransaction", "sending amount: $amount")
         val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
         // 1) gather available UTXOs
         val utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
+
+        if (getMyBalance() - amount < 0) {
+            Log.d("BuildUtxoTransaction", "Insufficient funds")
+            return null
+        }
 
         // 2) select coins (naive: first-fit)
         val inputs = mutableListOf<UTXO>()
@@ -78,8 +87,6 @@ class UTXOService(
             inputs += u; sum += u.amount
             if (sum >= amount) break
         }
-        require(sum >= amount) { "Insufficient funds" }
-        Log.d("BuildUtxoTransaction", "Insufficient funds")
 
         // 3) prepare outputs: recipient + change
         val txid = MessageDigest.getInstance("SHA-256").digest(System.nanoTime().toString().toByteArray())
@@ -88,17 +95,13 @@ class UTXOService(
         val change = sum - amount
         if (change > 0) outs += UTXO(txid.toHex(), 1, change.toInt(), trustChainCommunity.myPeer.publicKey.keyToBin())
 
-        // 4) bloom + proof for each spent input
-        /*val bf = BloomFilter(inputs.size, falsePositiveRate)
-        val proofs = mutableMapOf<UTXOId, Proof>()
         inputs.forEach { utxo ->
-            val key = utxo.id.toBytes()
-            bf.put(key)
-            proofs[utxo.id] = trieImpl.getProof(key)
-        }*/
+            val key = utxo.getUTXOIdString().hexToBytes()
+            bloom.add(key)
+        }
 
         // 5) Build the UTXO Transaction
-        val utxoTransaction: UTXOTransaction = UTXOTransaction(txid.toHex(), inputs, outs)
+        val utxoTransaction = UTXOTransaction(txid.toHex(), inputs, outs)
 
         return utxoTransaction
     }
