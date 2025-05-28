@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+        android:description="EuroToken HCE Payment Service"
+        android:requireDeviceUnlock="false">
+
+    <!-- EuroToken Payment AID Group -->
+    <aid-group android:description="EuroToken Payment"
+            android:category="payment">
+        <!-- F0457572546F6B656E = "EurToken" in hex with F0 prefix for proprietary AID -->
+        <aid-filter android:name="F0457572546F6B656E" />
+    </aid-group>
+
+</host-apdu-service>

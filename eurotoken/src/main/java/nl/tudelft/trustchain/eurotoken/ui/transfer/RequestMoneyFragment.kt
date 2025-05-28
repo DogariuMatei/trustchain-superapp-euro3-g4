@@ -16,6 +16,12 @@ import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("SetTextI18n")
 class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_money) {
+
+    companion object {
+        private const val TAG = "RequestMoneyFragment"
+        const val ARG_DATA = "data"
+    }
+
     private val binding by viewBinding(FragmentRequestMoneyBinding::bind)
 
     private var paymentRequestData: String? = null
@@ -26,20 +32,23 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
         savedInstanceState: Bundle?
     ) {
         super.onViewCreated(view, savedInstanceState)
+        Log.d(TAG, "=== REQUEST MONEY FRAGMENT VIEW CREATED ===")
 
         paymentRequestData = requireArguments().getString(ARG_DATA)!!
-        Log.e ("RequestMoneyFragment", "Request Fragment got args: ${paymentRequestData}")
-        // Hide any QR-related UI elements
+        Log.d(TAG, "Payment request data: ${paymentRequestData?.take(100)}...")
+
+        // Hide QR code UI (legacy)
         binding.qr.visibility = View.GONE
 
-        // Display payment request data for debugging (can be removed later)
-        binding.txtRequestData.text = "Payment request ready for NFC transmission"
+        // Display status
+        binding.txtRequestData.text = "Payment request ready for transmission"
 
-        // Start Phase 1 NFC transmission immediately
-        startPhase1NFCTransmission()
+        // Start Phase 1 HCE transmission immediately
+        startPhase1HCETransmission()
 
         binding.btnContinue.setOnClickListener {
             if (isPhase1Complete) {
+                Log.d(TAG, "Navigating back to activate Phase 2")
                 // Navigate back to TransferFragment with Phase 2 activation signal
                 val args = Bundle()
                 args.putBoolean("activate_phase2", true)
@@ -51,10 +60,11 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     }
 
     /**
-     * Start Phase 1 NFC transmission of payment request
+     * Start Phase 1 HCE transmission of payment request
      */
+    private fun startPhase1HCETransmission() {
+        Log.d(TAG, "=== START PHASE 1 HCE TRANSMISSION ===")
 
-    private fun startPhase1NFCTransmission() {
         paymentRequestData?.let { data ->
             Toast.makeText(
                 requireContext(),
@@ -62,8 +72,14 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
                 Toast.LENGTH_LONG
             ).show()
 
-            writeToNFC(data) { success ->
-                if (success) {
+            // Use HCE card emulation mode to send payment request
+            startHCECardEmulation(
+                jsonData = data,
+                message = "Sending payment request...",
+                timeoutSeconds = 30,
+                expectResponse = false,
+                onSuccess = {
+                    Log.d(TAG, "Payment request sent successfully")
                     isPhase1Complete = true
                     binding.txtRequestData.text = "Payment request sent! Waiting for response..."
                     binding.btnContinue.text = "Activate Phase 2"
@@ -73,86 +89,26 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
                         "Payment request sent successfully! You can now activate Phase 2 to receive the payment.",
                         Toast.LENGTH_LONG
                     ).show()
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "Failed to send payment request. Please try again.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    // Allow retry
-                    retryPhase1Transmission()
                 }
-            }
+            )
+        } ?: run {
+            Log.e(TAG, "No payment request data available")
+            Toast.makeText(
+                requireContext(),
+                "Error: No payment request data",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     /**
      * Allow user to retry Phase 1 transmission
      */
-
     private fun retryPhase1Transmission() {
+        Log.d(TAG, "Retrying Phase 1 transmission")
         binding.btnContinue.text = "Retry Request"
         binding.btnContinue.setOnClickListener {
-            startPhase1NFCTransmission()
-        }
-    }
-
-    /**
-     * Handle incoming NFC data - Should not receive data in Phase 1, but could receive Phase 2 data
-     */
-    override fun onNFCDataReceived(jsonData: String) {
-        try {
-            val receivedData = org.json.JSONObject(jsonData)
-            val dataType = receivedData.optString("type")
-
-            when (dataType) {
-                "payment_confirmation" -> {
-                    // Received Phase 2 payment confirmation - process it
-                    handlePhase2PaymentConfirmation(receivedData)
-                }
-                else -> {
-                    Toast.makeText(
-                        requireContext(),
-                        "Received unexpected data type: $dataType",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        } catch (e: Exception) {
-            onNFCReadError("Invalid data received: ${e.message}")
-        }
-    }
-
-    /**
-     * Handle Phase 2 payment confirmation received directly in RequestMoneyFragment
-     * This happens if the user stays on this screen during both phases
-     */
-
-    private fun handlePhase2PaymentConfirmation(confirmationData: org.json.JSONObject) {
-        try {
-            // Extract transaction data
-            val senderName = confirmationData.optString("sender_name")
-            val amount = confirmationData.optLong("amount", -1L)
-
-            if (amount > 0) {
-                val displayName = if (senderName.isNotEmpty()) senderName else "Unknown"
-                Toast.makeText(
-                    requireContext(),
-                    "Payment of ${nl.tudelft.trustchain.common.eurotoken.TransactionRepository.prettyAmount(amount)} received from $displayName!",
-                    Toast.LENGTH_LONG
-                ).show()
-
-                binding.txtRequestData.text = "Payment received successfully!"
-
-                // Navigate to transaction history
-                findNavController().navigate(R.id.action_requestMoneyFragment_to_transactionsFragment)
-            } else {
-                Toast.makeText(requireContext(), "Invalid payment confirmation", Toast.LENGTH_SHORT).show()
-            }
-
-        } catch (e: Exception) {
-            Log.e ("RequestMoneyFragment", "Error processing payment confirmation: ${e.message}")
-            Toast.makeText(requireContext(), "Failed to process payment: ${e.message}", Toast.LENGTH_SHORT).show()
+            startPhase1HCETransmission()
         }
     }
 
@@ -160,10 +116,31 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
      * Handle NFC specific errors
      */
     override fun onNFCReadError(error: String) {
+        Log.e(TAG, "NFC Error: $error")
         Toast.makeText(requireContext(), "NFC Error: $error", Toast.LENGTH_SHORT).show()
+
+        // Allow retry on error
+        retryPhase1Transmission()
     }
 
-    companion object {
-        const val ARG_DATA = "data"
+    override fun onNFCTimeout() {
+        super.onNFCTimeout()
+        Log.w(TAG, "Phase 1 transmission timed out")
+        Toast.makeText(
+            requireContext(),
+            "Request timed out. Make sure the sender has NFC activated and try again.",
+            Toast.LENGTH_LONG
+        ).show()
+
+        // Allow retry on timeout
+        retryPhase1Transmission()
+    }
+
+    override fun onNFCOperationCancelled() {
+        super.onNFCOperationCancelled()
+        Log.d(TAG, "Phase 1 transmission cancelled")
+
+        // Allow retry on cancel
+        retryPhase1Transmission()
     }
 }

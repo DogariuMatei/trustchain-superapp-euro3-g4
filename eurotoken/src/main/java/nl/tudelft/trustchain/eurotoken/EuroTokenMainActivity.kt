@@ -1,8 +1,10 @@
 package nl.tudelft.trustchain.eurotoken
 
+import android.content.ComponentName
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.nfc.cardemulation.CardEmulation
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -10,15 +12,17 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import nl.tudelft.trustchain.common.BaseActivity
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
-import nl.tudelft.trustchain.common.util.NFCUtils
+import nl.tudelft.trustchain.common.util.HCENFCUtils
+import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteCapable {
+class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransactionHandler {
     override val navigationGraph = R.navigation.nav_graph_eurotoken
     override val bottomNavigationMenu = R.menu.eurotoken_navigation_menu
 
-    private val nfcUtils by lazy { NFCUtils(this) }
-    private var pendingNFCWrite: PendingNFCWrite? = null
+    private val hceNfcUtils by lazy { HCENFCUtils(this) }
+    private var isReaderModeActive = false
+    private var cardEmulation: CardEmulation? = null
 
     companion object {
         private const val TAG = "EuroTokenMainActivity"
@@ -26,75 +30,80 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.e(TAG, "=== ACTIVITY LIFECYCLE ===")
         Log.e(TAG, "onCreate called")
 
-        handleNFCIntent(intent)
+        // Initialize HCE components
+        initializeHCE()
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        Log.e(TAG, "onNewIntent called with action: ${intent?.action}")
+    private fun initializeHCE() {
+        Log.d(TAG, "=== INITIALIZING HCE ===")
 
-        if (intent != null) {
-            setIntent(intent)
-            handleNFCIntent(intent)
+        val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        if (nfcAdapter != null) {
+            cardEmulation = CardEmulation.getInstance(nfcAdapter)
+
+            // Check if our HCE service is the default
+            val serviceComponent = ComponentName(this, HCEPaymentService::class.java)
+            val isDefault = cardEmulation?.isDefaultServiceForCategory(
+                serviceComponent,
+                CardEmulation.CATEGORY_PAYMENT
+            ) ?: false
+
+            Log.d(TAG, "HCE service is default: $isDefault")
+
+            if (!isDefault) {
+                Log.w(TAG, "Our HCE service is not the default payment service")
+                // Optionally prompt user to set as default
+                promptSetAsDefaultPaymentApp()
+            }
+        } else {
+            Log.e(TAG, "NFC adapter is null - NFC not supported")
+        }
+    }
+
+    private fun promptSetAsDefaultPaymentApp() {
+        Toast.makeText(
+            this,
+            "Please set EuroToken as your default payment app in NFC settings",
+            Toast.LENGTH_LONG
+        ).show()
+
+        // Open NFC payment settings
+        try {
+            startActivity(Intent(CardEmulation.ACTION_CHANGE_DEFAULT))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open NFC payment settings: ${e.message}")
         }
     }
 
     override fun onResume() {
         super.onResume()
+        Log.e(TAG, "onResume called")
+
+        // Clear any stale HCE data
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
     }
 
     override fun onPause() {
         super.onPause()
+        Log.e(TAG, "onPause called")
+
+        // Disable reader mode if active
+        if (isReaderModeActive) {
+            disableReaderMode()
+        }
     }
 
-    /**
-     * Handle NFC intents
-     */
-    private fun handleNFCIntent(intent: Intent) {
-        val action = intent.action
-        Log.e(TAG, "handleNFCIntent called with action: $action")
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.e(TAG, "onDestroy called")
 
-        // Check if it's an NFC intent
-        if (action == NfcAdapter.ACTION_TAG_DISCOVERED ||
-            action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
-            action == NfcAdapter.ACTION_TECH_DISCOVERED) {
-
-            Log.e(TAG, "NFC intent detected")
-
-            // If we have pending write data, write to the tag
-            pendingNFCWrite?.let { pendingWrite ->
-                Log.e(TAG, "THERE IS A PENDING WRITE -> WRITE JSON TO NFC TAG")
-                val tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
-                if (tag != null) {
-                    Log.e(TAG, "THERE IS A VALID TAG DETECTED -> WRITE JSON TO NFC TAG")
-                    val success = nfcUtils.writeJSONToTag(tag, pendingWrite.jsonData)
-                    pendingWrite.callback(success)
-                    pendingNFCWrite = null
-
-                    if (success) {
-                        Toast.makeText(this, "Payment request sent successfully!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Failed to send payment request", Toast.LENGTH_SHORT).show()
-                    }
-                    return
-                } else {
-                    Log.w(TAG, "No tag found in intent, but pending write exists")
-                }
-            }
-
-            Log.e(TAG, "TRYING TO READ FROM NFC TAG")
-            // Otherwise, try to read from the tag and pass to current fragment
-            getCurrentNFCFragment()?.let { fragment ->
-                Log.e(TAG, "Passing NFC intent to fragment: ${fragment.javaClass.simpleName}")
-                fragment.handleIncomingNFCIntent(intent)
-            } ?: run {
-                Log.w(TAG, "No current NFC fragment found to handle intent")
-            }
-        } else {
-            Log.e(TAG, "Not an NFC intent, action: $action")
-        }
+        // Clean up HCE service data
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
     }
 
     /**
@@ -111,38 +120,191 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.NFCWriteC
     }
 
     /**
-     * Setup NFC write operation (called from fragments)
+     * Setup HCE card emulation mode for sending data
      */
-    override fun setupNFCWrite(jsonData: String, onResult: (Boolean) -> Unit) {
-        Log.e(TAG, "setupNFCWrite called with data length: ${jsonData.length}")
+    override fun setupHCECardEmulation(
+        jsonData: String,
+        onDataReceived: (String) -> Unit,
+        onTimeout: () -> Unit
+    ) {
+        Log.e(TAG, "=== SETUP HCE CARD EMULATION ===")
+        Log.e(TAG, "Setting up card emulation with data length: ${jsonData.length}")
+        Log.e(TAG, "JSON preview: ${jsonData.take(100)}")
 
-        if (!nfcUtils.isNFCAvailable()) {
-            Log.w(TAG, "NFC is not available for write operation")
+        if (!hceNfcUtils.isNFCAvailable()) {
+            Log.w(TAG, "NFC is not available")
             Toast.makeText(this, "NFC is not available or disabled", Toast.LENGTH_SHORT).show()
-            onResult(false)
+            onTimeout()
             return
         }
 
-        Log.e(TAG, "Setting up pending NFC write operation")
-        // Store the data to write when tag is detected
-        pendingNFCWrite = PendingNFCWrite(jsonData, onResult)
+        // Set the pending data in HCE service
+        HCEPaymentService.setPendingTransactionData(jsonData)
 
-        Toast.makeText(
-            this,
-            "Hold your phone against the other device to send payment request",
-            Toast.LENGTH_LONG
-        ).show()
+        // Set callback for when we receive data back
+        HCEPaymentService.setOnDataReceivedCallback { receivedData ->
+            Log.d(TAG, "HCE service received data callback triggered")
+            runOnUiThread {
+                onDataReceived(receivedData)
+            }
+        }
 
-        Log.e(TAG, "Pending NFC write operation set up successfully")
+        Log.d(TAG, "HCE card emulation configured successfully")
+        Log.d(TAG, "Waiting for reader to connect...")
+
+        // Set timeout
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (HCEPaymentService.pendingTransactionData != null) {
+                Log.w(TAG, "HCE card emulation timeout")
+                HCEPaymentService.clearPendingTransactionData()
+                HCEPaymentService.clearOnDataReceivedCallback()
+                onTimeout()
+            }
+        }, 30000) // 30 second timeout
     }
 
     /**
-     * Data class for pending NFC write operations
+     * Setup reader mode for receiving data
      */
-    private data class PendingNFCWrite(
-        val jsonData: String,
-        val callback: (Boolean) -> Unit
-    )
+    override fun setupHCEReaderMode(
+        onDataReceived: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        Log.e(TAG, "=== SETUP HCE READER MODE ===")
+
+        if (!hceNfcUtils.isNFCAvailable()) {
+            Log.w(TAG, "NFC is not available")
+            onError("NFC is not available or disabled")
+            return
+        }
+
+        isReaderModeActive = true
+
+        hceNfcUtils.enableReaderMode(
+            this,
+            onTagDiscovered = { tag ->
+                Log.d(TAG, "Tag discovered in reader mode, attempting to read data")
+
+                // Try to receive data from the HCE service
+                hceNfcUtils.receiveDataFromHCE(
+                    tag,
+                    onSuccess = { jsonData ->
+                        Log.d(TAG, "Successfully received data from HCE")
+                        runOnUiThread {
+                            isReaderModeActive = false
+                            hceNfcUtils.disableReaderMode(this)
+                            onDataReceived(jsonData)
+                        }
+                    },
+                    onError = { error ->
+                        Log.e(TAG, "Failed to receive data from HCE: $error")
+                        runOnUiThread {
+                            onError(error)
+                        }
+                    }
+                )
+            },
+            onError = { error ->
+                Log.e(TAG, "Reader mode error: $error")
+                isReaderModeActive = false
+                onError(error)
+            }
+        )
+
+        Log.d(TAG, "HCE reader mode enabled successfully")
+    }
+
+    /**
+     * Send data and receive response in reader mode
+     */
+    override fun sendDataAndReceiveResponse(
+        jsonData: String,
+        onResponseReceived: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        Log.e(TAG, "=== SEND DATA AND RECEIVE RESPONSE ===")
+        Log.e(TAG, "Sending data length: ${jsonData.length}")
+
+        if (!hceNfcUtils.isNFCAvailable()) {
+            Log.w(TAG, "NFC is not available")
+            onError("NFC is not available or disabled")
+            return
+        }
+
+        isReaderModeActive = true
+
+        hceNfcUtils.enableReaderMode(
+            this,
+            onTagDiscovered = { tag ->
+                Log.d(TAG, "Tag discovered, sending data and waiting for response")
+
+                // First send our data
+                hceNfcUtils.sendDataToHCE(
+                    tag,
+                    jsonData,
+                    onSuccess = {
+                        Log.d(TAG, "Data sent successfully, now receiving response")
+
+                        // Then immediately try to receive response
+                        hceNfcUtils.receiveDataFromHCE(
+                            tag,
+                            onSuccess = { responseData ->
+                                Log.d(TAG, "Successfully received response from HCE")
+                                runOnUiThread {
+                                    isReaderModeActive = false
+                                    hceNfcUtils.disableReaderMode(this)
+                                    onResponseReceived(responseData)
+                                }
+                            },
+                            onError = { error ->
+                                Log.e(TAG, "Failed to receive response: $error")
+                                runOnUiThread {
+                                    isReaderModeActive = false
+                                    hceNfcUtils.disableReaderMode(this)
+                                    onError("Failed to receive response: $error")
+                                }
+                            }
+                        )
+                    },
+                    onError = { error ->
+                        Log.e(TAG, "Failed to send data: $error")
+                        runOnUiThread {
+                            isReaderModeActive = false
+                            hceNfcUtils.disableReaderMode(this)
+                            onError("Failed to send data: $error")
+                        }
+                    }
+                )
+            },
+            onError = { error ->
+                Log.e(TAG, "Reader mode error: $error")
+                isReaderModeActive = false
+                onError(error)
+            }
+        )
+    }
+
+    /**
+     * Disable reader mode
+     */
+    override fun disableReaderMode() {
+        Log.e(TAG, "=== DISABLE READER MODE ===")
+        if (isReaderModeActive) {
+            hceNfcUtils.disableReaderMode(this)
+            isReaderModeActive = false
+            Log.d(TAG, "Reader mode disabled")
+        }
+    }
+
+    /**
+     * Stop HCE card emulation
+     */
+    override fun stopHCECardEmulation() {
+        Log.e(TAG, "=== STOP HCE CARD EMULATION ===")
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
+        Log.d(TAG, "HCE card emulation stopped")
+    }
 
     /**
      * The values for shared preferences used by this activity.

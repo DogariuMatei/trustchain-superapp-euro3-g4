@@ -1,75 +1,169 @@
 package nl.tudelft.trustchain.eurotoken.ui
 
 import android.util.Log
-import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.LayoutRes
 import androidx.annotation.RequiresApi
-import nl.tudelft.trustchain.common.util.NFCUtils
 import nl.tudelft.trustchain.eurotoken.ui.components.NFCActivationDialog
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : EurotokenBaseFragment(contentLayoutId) {
 
-    protected val nfcUtils by lazy { NFCUtils(requireContext()) }
+    companion object {
+        private const val TAG = "EurotokenNFCBaseFragment"
+    }
 
     // NFC Dialog Management
     private var nfcDialog: NFCActivationDialog? = null
     private var nfcTimeoutHandler: Handler = Handler(Looper.getMainLooper())
     private var nfcTimeoutRunnable: Runnable? = null
 
-    // Simple NFC State Management
-    enum class NFCState {
-        IDLE,
-        WAITING,
-        SUCCESS,
-        ERROR
+    // HCE Operation States
+    enum class HCEOperationType {
+        NONE,
+        CARD_EMULATION,      // Acting as a card (sender in phase 2)
+        READER_MODE,         // Acting as a reader (receiver in phase 1)
+        SEND_AND_RECEIVE     // Send data then receive response
     }
 
-    private var currentNFCState: NFCState = NFCState.IDLE
+    private var currentOperation: HCEOperationType = HCEOperationType.NONE
 
     override fun onResume() {
         super.onResume()
-        // Enable NFC reading when fragment is visible
-        if (nfcUtils.isNFCAvailable()) {
-            nfcUtils.enableNFCReading(requireActivity())
-        } else {
-            showNFCNotAvailableMessage()
-        }
+        Log.d(TAG, "Fragment resumed: ${this::class.simpleName}")
     }
 
     override fun onPause() {
         super.onPause()
-        // Disable NFC reading when fragment not visible
-        if (nfcUtils.isNFCAvailable()) {
-            nfcUtils.disableNFCReading(requireActivity())
-        }
+        Log.d(TAG, "Fragment paused: ${this::class.simpleName}")
 
-        // Cleanup dialog and timeouts
-        dismissNFCDialog()
-        cancelNFCTimeout()
+        // Cleanup any active NFC operations
+        cleanupNFCOperations()
     }
 
     /**
-     * Handle incoming NFC data
+     * Start HCE card emulation mode (device acts as a card)
+     * Used when this device needs to send data and potentially receive a response
      */
-    fun handleIncomingNFCIntent(intent: Intent) {
-        updateNFCState(NFCState.WAITING)
+    protected fun startHCECardEmulation(
+        jsonData: String,
+        message: String = "Hold phones together...",
+        timeoutSeconds: Int = 30,
+        expectResponse: Boolean = false,
+        onSuccess: () -> Unit = {},
+        onResponseReceived: ((String) -> Unit)? = null
+    ) {
+        Log.d(TAG, "=== START HCE CARD EMULATION ===")
+        Log.d(TAG, "Data to send: ${jsonData.take(100)}...")
+        Log.d(TAG, "Expect response: $expectResponse")
 
-        val jsonData = nfcUtils.processIncomingNFCIntent(intent)
-        if (jsonData != null) {
-            onNFCDataReceived(jsonData)
-        } else {
-            updateNFCState(NFCState.ERROR)
-            onNFCReadError("No valid data found on NFC tag")
+        currentOperation = HCEOperationType.CARD_EMULATION
+        showNFCDialog(message, timeoutSeconds)
+
+        getHCEHandler()?.setupHCECardEmulation(
+            jsonData = jsonData,
+            onDataReceived = { responseData ->
+                Log.d(TAG, "Card emulation received response data")
+                if (expectResponse && onResponseReceived != null) {
+                    updateNFCDialogMessage("Response received!")
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        dismissNFCDialog()
+                        onResponseReceived(responseData)
+                    }, 1000)
+                }
+            },
+            onTimeout = {
+                Log.w(TAG, "Card emulation timeout")
+                dismissNFCDialog()
+                onNFCTimeout()
+            }
+        ) ?: run {
+            Log.e(TAG, "HCE handler not available")
+            dismissNFCDialog()
+            Toast.makeText(requireContext(), "NFC not available", Toast.LENGTH_SHORT).show()
+        }
+
+        onSuccess()
+    }
+
+    /**
+     * Start HCE reader mode (device acts as a reader)
+     * Used when this device needs to receive data from another device
+     */
+    protected fun startHCEReaderMode(
+        message: String = "Ready to receive. Hold phones together...",
+        timeoutSeconds: Int = 30,
+        onDataReceived: (String) -> Unit
+    ) {
+        Log.d(TAG, "=== START HCE READER MODE ===")
+
+        currentOperation = HCEOperationType.READER_MODE
+        showNFCDialog(message, timeoutSeconds)
+
+        getHCEHandler()?.setupHCEReaderMode(
+            onDataReceived = { jsonData ->
+                Log.d(TAG, "Reader mode received data: ${jsonData.take(100)}...")
+                updateNFCDialogMessage("Data received!")
+                Handler(Looper.getMainLooper()).postDelayed({
+                    dismissNFCDialog()
+                    onDataReceived(jsonData)
+                }, 1000)
+            },
+            onError = { error ->
+                Log.e(TAG, "Reader mode error: $error")
+                dismissNFCDialog()
+                onNFCReadError(error)
+            }
+        ) ?: run {
+            Log.e(TAG, "HCE handler not available")
+            dismissNFCDialog()
+            Toast.makeText(requireContext(), "NFC not available", Toast.LENGTH_SHORT).show()
         }
     }
 
     /**
-     * Show simple NFC dialog
+     * Send data and wait for response in reader mode
+     * Used for bidirectional communication where this device initiates
+     */
+    protected fun sendDataAndWaitForResponse(
+        jsonData: String,
+        message: String = "Hold phones together to send and receive...",
+        timeoutSeconds: Int = 30,
+        onResponseReceived: (String) -> Unit
+    ) {
+        Log.d(TAG, "=== SEND DATA AND WAIT FOR RESPONSE ===")
+        Log.d(TAG, "Data to send: ${jsonData.take(100)}...")
+
+        currentOperation = HCEOperationType.SEND_AND_RECEIVE
+        showNFCDialog(message, timeoutSeconds)
+
+        getHCEHandler()?.sendDataAndReceiveResponse(
+            jsonData = jsonData,
+            onResponseReceived = { responseData ->
+                Log.d(TAG, "Received response: ${responseData.take(100)}...")
+                updateNFCDialogMessage("Transaction complete!")
+                Handler(Looper.getMainLooper()).postDelayed({
+                    dismissNFCDialog()
+                    onResponseReceived(responseData)
+                }, 1000)
+            },
+            onError = { error ->
+                Log.e(TAG, "Send and receive error: $error")
+                dismissNFCDialog()
+                onNFCReadError(error)
+            }
+        ) ?: run {
+            Log.e(TAG, "HCE handler not available")
+            dismissNFCDialog()
+            Toast.makeText(requireContext(), "NFC not available", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Show NFC operation dialog
      */
     protected fun showNFCDialog(message: String, timeoutSeconds: Int = 30) {
         dismissNFCDialog() // Dismiss any existing dialog
@@ -77,7 +171,8 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
         nfcDialog = NFCActivationDialog.newInstance(message)
         nfcDialog?.setListener(object : NFCActivationDialog.NFCDialogListener {
             override fun onCancel() {
-                updateNFCState(NFCState.IDLE)
+                Log.d(TAG, "NFC dialog cancelled by user")
+                cleanupNFCOperations()
                 onNFCOperationCancelled()
             }
         })
@@ -107,81 +202,14 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Update the current NFC state
-     */
-    protected fun updateNFCState(newState: NFCState) {
-        currentNFCState = newState
-
-        when (newState) {
-            NFCState.WAITING -> updateNFCDialogMessage("Hold phones together...")
-            NFCState.SUCCESS -> updateNFCDialogMessage("Success!")
-            NFCState.ERROR -> updateNFCDialogMessage("Error occurred. Please try again.")
-            NFCState.IDLE -> dismissNFCDialog()
-        }
-    }
-
-    /**
-     * Write data to NFC tag
-     */
-    protected fun writeToNFC(jsonData: String, onResult: (Boolean) -> Unit) {
-        if (!nfcUtils.isNFCAvailable()) {
-            onResult(false)
-            showNFCNotAvailableMessage()
-            return
-        }
-
-        // Show waiting dialog
-        showNFCDialog("Hold phones together to send data...")
-        updateNFCState(NFCState.WAITING)
-
-        // Setup NFC write through activity
-        requireActivity().let { activity ->
-            if (activity is NFCWriteCapable) {
-                activity.setupNFCWrite(jsonData) { success ->
-                    if (success) {
-                        updateNFCState(NFCState.SUCCESS)
-                        onResult(true)
-                        Log.e("EurotokenNFCBaseFragment", "Sending NFC payload SUCCESS")
-                        // Auto-dismiss success dialog after delay
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            dismissNFCDialog()
-                        }, 2000)
-                    } else {
-                        Log.e("EurotokenNFCBaseFragment", "Sending NFC payload FAILED in NFCBaseFragment")
-                        updateNFCState(NFCState.ERROR)
-                        onResult(false)
-                    }
-                }
-            } else {
-                updateNFCState(NFCState.ERROR)
-                onResult(false)
-            }
-        }
-    }
-
-    /**
-     * Activate NFC for receiving data
-     */
-    protected fun activateNFCReceive(expectedDataType: String = "", timeoutSeconds: Int = 30) {
-        if (!nfcUtils.isNFCAvailable()) {
-            showNFCNotAvailableMessage()
-            return
-        }
-
-        showNFCDialog("Ready to receive data. Hold phones together...", timeoutSeconds)
-        updateNFCState(NFCState.WAITING)
-    }
-
-    /**
      * Set a timeout for NFC operations
      */
     private fun setNFCTimeout(timeoutMs: Long) {
         cancelNFCTimeout()
         nfcTimeoutRunnable = Runnable {
-            if (currentNFCState == NFCState.WAITING) {
-                updateNFCState(NFCState.ERROR)
-                onNFCTimeout()
-            }
+            Log.w(TAG, "NFC operation timeout")
+            cleanupNFCOperations()
+            onNFCTimeout()
         }
         nfcTimeoutHandler.postDelayed(nfcTimeoutRunnable!!, timeoutMs)
     }
@@ -197,33 +225,47 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Show message when NFC is not available
+     * Clean up all NFC operations
      */
-    private fun showNFCNotAvailableMessage() {
-        Toast.makeText(
-            requireContext(),
-            "NFC is not available or disabled. Please enable NFC in settings.",
-            Toast.LENGTH_LONG
-        ).show()
+    private fun cleanupNFCOperations() {
+        Log.d(TAG, "Cleaning up NFC operations")
+
+        dismissNFCDialog()
+
+        when (currentOperation) {
+            HCEOperationType.CARD_EMULATION -> {
+                getHCEHandler()?.stopHCECardEmulation()
+            }
+            HCEOperationType.READER_MODE, HCEOperationType.SEND_AND_RECEIVE -> {
+                getHCEHandler()?.disableReaderMode()
+            }
+            HCEOperationType.NONE -> {
+                // Nothing to clean up
+            }
+        }
+
+        currentOperation = HCEOperationType.NONE
     }
 
     /**
-     * Called when valid NFC data is received
+     * Get HCE handler from activity
      */
-    protected abstract fun onNFCDataReceived(jsonData: String)
+    private fun getHCEHandler(): HCETransactionHandler? {
+        return requireActivity() as? HCETransactionHandler
+    }
 
     /**
      * Called when NFC read fails
      */
     protected open fun onNFCReadError(error: String) {
-        Toast.makeText(requireContext(), "NFC Read Error: $error", Toast.LENGTH_SHORT).show()
+        Toast.makeText(requireContext(), "NFC Error: $error", Toast.LENGTH_SHORT).show()
     }
 
     /**
      * Called when NFC operation is cancelled by user
      */
     protected open fun onNFCOperationCancelled() {
-        // Override in subclasses if needed
+        Log.d(TAG, "NFC operation cancelled")
     }
 
     /**
@@ -234,9 +276,27 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     }
 
     /**
-     * Interface for activities that can handle NFC writing
+     * Interface for activities that can handle HCE transactions
      */
-    interface NFCWriteCapable {
-        fun setupNFCWrite(jsonData: String, onResult: (Boolean) -> Unit)
+    interface HCETransactionHandler {
+        fun setupHCECardEmulation(
+            jsonData: String,
+            onDataReceived: (String) -> Unit,
+            onTimeout: () -> Unit
+        )
+
+        fun setupHCEReaderMode(
+            onDataReceived: (String) -> Unit,
+            onError: (String) -> Unit
+        )
+
+        fun sendDataAndReceiveResponse(
+            jsonData: String,
+            onResponseReceived: (String) -> Unit,
+            onError: (String) -> Unit
+        )
+
+        fun disableReaderMode()
+        fun stopHCECardEmulation()
     }
 }
