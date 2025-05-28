@@ -2,6 +2,7 @@ package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.util.Log
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -11,6 +12,7 @@ import androidx.navigation.fragment.findNavController
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentRequestMoneyBinding
+import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -65,6 +67,9 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     private fun startPhase1HCETransmission() {
         Log.d(TAG, "=== START PHASE 1 HCE TRANSMISSION ===")
 
+        // Start HCE service explicitly
+        requireContext().startService(Intent(requireContext(), HCEPaymentService::class.java))
+
         paymentRequestData?.let { data ->
             Toast.makeText(
                 requireContext(),
@@ -75,22 +80,19 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
             // Use HCE card emulation mode to send payment request
             startHCECardEmulation(
                 jsonData = data,
-                message = "Sending payment request...",
+                message = "Waiting for sender's phone...",
                 timeoutSeconds = 30,
                 expectResponse = false,
                 onSuccess = {
-                    Log.d(TAG, "Payment request sent successfully")
-                    isPhase1Complete = true
-                    binding.txtRequestData.text = "Payment request sent! Waiting for response..."
-                    binding.btnContinue.text = "Activate Phase 2"
-
-                    Toast.makeText(
-                        requireContext(),
-                        "Payment request sent successfully! You can now activate Phase 2 to receive the payment.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    // This is called when HCE is set up, not when data is transmitted
+                    Log.d(TAG, "HCE card emulation ready - waiting for reader")
                 }
             )
+
+            // Update UI to show we're ready
+            binding.txtRequestData.text = "Ready to transmit. Hold phones together..."
+
+            // Note: Actual success will be handled when the reader connects and reads the data
         } ?: run {
             Log.e(TAG, "No payment request data available")
             Toast.makeText(

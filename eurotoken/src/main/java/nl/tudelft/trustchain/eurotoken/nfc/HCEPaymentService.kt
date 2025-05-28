@@ -6,7 +6,7 @@ import android.util.Log
 import java.nio.charset.StandardCharsets
 
 /**
- * HCE service for handling offline payment transactions via ISO-DEP protocol
+ * HCE service for handling offline transactions with ISO-DEP protocol
  */
 class HCEPaymentService : HostApduService() {
 
@@ -29,6 +29,21 @@ class HCEPaymentService : HostApduService() {
         // Singleton pattern for data exchange with activities/fragments
         private var pendingTransactionData: String? = null
         private var onDataReceivedCallback: ((String) -> Unit)? = null
+        private var onDataTransmittedCallback: (() -> Unit)? = null
+
+        fun hasPendingData(): Boolean {
+            return pendingTransactionData != null
+        }
+
+        fun setOnDataTransmittedCallback(callback: () -> Unit) {
+            Log.d(TAG, "Setting data transmitted callback")
+            onDataTransmittedCallback = callback
+        }
+
+        fun clearOnDataTransmittedCallback() {
+            Log.d(TAG, "Clearing data transmitted callback")
+            onDataTransmittedCallback = null
+        }
 
         fun setPendingTransactionData(data: String) {
             Log.d(TAG, "Setting pending transaction data: ${data.take(100)}...")
@@ -83,6 +98,7 @@ class HCEPaymentService : HostApduService() {
         Log.d(TAG, "=== HCE SERVICE DESTROYED ===")
         clearPendingTransactionData()
         clearOnDataReceivedCallback()
+        clearOnDataTransmittedCallback()
     }
 
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
@@ -171,6 +187,13 @@ class HCEPaymentService : HostApduService() {
         // Convert string to bytes and append status
         val dataBytes = data.toByteArray(StandardCharsets.UTF_8)
         val response = dataBytes + STATUS_SUCCESS
+
+        // Notify that data was successfully transmitted
+        val callback = onDataTransmittedCallback
+        if (callback != null) {
+            Log.d(TAG, "Invoking data transmitted callback")
+            callback()
+        }
 
         Log.d(TAG, "Response length: ${response.size} bytes")
         Log.d(TAG, "=== GET DATA COMPLETE ===")

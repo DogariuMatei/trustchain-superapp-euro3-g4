@@ -2,6 +2,7 @@ package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.util.Log
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -18,6 +19,7 @@ import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
+import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
 
@@ -282,6 +284,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)
 
             Log.d(TAG, "Payment confirmation created: ${paymentConfirmation.toString(2)}")
+
+            // Start HCE service explicitly
+            requireContext().startService(Intent(requireContext(), HCEPaymentService::class.java))
 
             // Start HCE card emulation mode to send payment confirmation
             Toast.makeText(

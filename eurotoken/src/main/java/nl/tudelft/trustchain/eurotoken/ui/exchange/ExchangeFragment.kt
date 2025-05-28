@@ -1,6 +1,7 @@
 package nl.tudelft.trustchain.eurotoken.ui.exchange
 
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -9,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import kotlinx.coroutines.delay
@@ -24,6 +26,7 @@ import nl.tudelft.trustchain.eurotoken.ui.transfer.TransferFragment
 import org.json.JSONException
 import org.json.JSONObject
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class ExchangeFragment : EurotokenNFCBaseFragment() {
     @Suppress("ktlint:standard:property-naming") // False positive
     private var _binding: FragmentExchangeBinding? = null
@@ -122,7 +125,7 @@ class ExchangeFragment : EurotokenNFCBaseFragment() {
     /**
      * Handle received NFC gateway data
      */
-    override fun onNFCDataReceived(jsonData: String) {
+    fun onNFCDataReceived(jsonData: String) {
         try {
             val connectionData = ConnectionData(jsonData)
             Toast.makeText(requireContext(), "Connected to ${connectionData.name}", Toast.LENGTH_LONG).show()

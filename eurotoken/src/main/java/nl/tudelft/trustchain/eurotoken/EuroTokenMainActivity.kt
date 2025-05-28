@@ -154,7 +154,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
 
         // Set timeout
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            if (HCEPaymentService.pendingTransactionData != null) {
+            if (HCEPaymentService.hasPendingData()) {
                 Log.w(TAG, "HCE card emulation timeout")
                 HCEPaymentService.clearPendingTransactionData()
                 HCEPaymentService.clearOnDataReceivedCallback()

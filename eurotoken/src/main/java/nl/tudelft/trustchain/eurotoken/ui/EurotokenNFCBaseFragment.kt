@@ -86,7 +86,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
             Toast.makeText(requireContext(), "NFC not available", Toast.LENGTH_SHORT).show()
         }
 
-        onSuccess()
+        // Don't call onSuccess here - wait for actual transmission
     }
 
     /**
