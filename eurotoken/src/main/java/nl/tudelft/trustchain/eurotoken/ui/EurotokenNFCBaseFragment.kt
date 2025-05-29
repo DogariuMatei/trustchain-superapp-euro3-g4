@@ -65,7 +65,6 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
         currentOperation = HCEOperationType.CARD_EMULATION
         showNFCDialog(message, timeoutSeconds)
 
-        // MODIFIED
         HCEPaymentService.setPendingTransactionData(jsonData)
         if (onDataTransmitted != null) {
             HCEPaymentService.setOnDataTransmittedCallback {
@@ -75,7 +74,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
                 }
             }
         }
-        // END MODIFIED
+
 
         getHCEHandler()?.setupHCECardEmulation(
             jsonData = jsonData,
@@ -109,7 +108,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
      */
     protected fun startHCEReaderMode(
         message: String = "Ready to receive. Hold phones together...",
-        timeoutSeconds: Int = 30,
+        timeoutSeconds: Int = 60,
         onDataReceived: (String) -> Unit
     ) {
         Log.d(TAG, "=== START HCE READER MODE ===")
@@ -140,12 +139,13 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
 
     /**
      * Send data and wait for response in reader mode
-     * Used for bidirectional communication where this device initiates
+     * Used for bidirectional communication
+     * Where THIS device initiates
      */
     protected fun sendDataAndWaitForResponse(
         jsonData: String,
         message: String = "Hold phones together to send and receive...",
-        timeoutSeconds: Int = 30,
+        timeoutSeconds: Int = 60,
         onResponseReceived: (String) -> Unit
     ) {
         Log.d(TAG, "=== SEND DATA AND WAIT FOR RESPONSE ===")

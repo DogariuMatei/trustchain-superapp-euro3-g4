@@ -11,14 +11,14 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 
 /**
- * Utility class for handling HCE-based NFC operations
+ * Utility class for handling HCE NFC operations
  */
 class HCENFCUtils(private val context: Context) {
 
     companion object {
         private const val TAG = "HCENFCUtils"
 
-        // EuroToken AID (Application Identifier)
+        // EuroToken AID (Application ID)
         private val SELECT_AID_HEADER = byteArrayOf(
             0x00.toByte(), // CLA
             0xA4.toByte(), // INS (SELECT)
@@ -33,7 +33,7 @@ class HCENFCUtils(private val context: Context) {
         private const val GET_DATA_INS = 0xCA.toByte()
         private const val PUT_DATA_INS = 0xDA.toByte()
 
-        // Max APDU data size (conservative estimate)
+        // Max APDU data size - maybe make more later
         private const val MAX_APDU_DATA_SIZE = 250
 
         // Reader mode flags

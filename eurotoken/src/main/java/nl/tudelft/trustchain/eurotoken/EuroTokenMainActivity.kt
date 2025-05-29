@@ -3,7 +3,6 @@ package nl.tudelft.trustchain.eurotoken
 import android.content.ComponentName
 import android.content.Intent
 import android.nfc.NfcAdapter
-import android.nfc.Tag
 import android.nfc.cardemulation.CardEmulation
 import android.os.Build
 import android.os.Bundle
@@ -33,7 +32,6 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         Log.e(TAG, "=== ACTIVITY LIFECYCLE ===")
         Log.e(TAG, "onCreate called")
 
-        // Initialize HCE components
         initializeHCE()
     }
 
@@ -82,7 +80,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         super.onResume()
         Log.e(TAG, "onResume called")
 
-        // Clear any stale HCE data
+        // Clear any old HCE data
         HCEPaymentService.clearPendingTransactionData()
         HCEPaymentService.clearOnDataReceivedCallback()
     }
@@ -91,7 +89,6 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         super.onPause()
         Log.e(TAG, "onPause called")
 
-        // Only disable reader mode if active
         if (isReaderModeActive) {
             disableReaderMode()
         }
@@ -101,26 +98,13 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         super.onDestroy()
         Log.e(TAG, "onDestroy called")
 
-        // Clean up HCE service data
+        // Clean up HCE data
         HCEPaymentService.clearPendingTransactionData()
         HCEPaymentService.clearOnDataReceivedCallback()
     }
 
     /**
-     * Get the current NFC-capable fragment
-     */
-    private fun getCurrentNFCFragment(): EurotokenNFCBaseFragment? {
-        val navHostFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment)
-        val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
-        val nfcFragment = currentFragment as? EurotokenNFCBaseFragment
-
-        Log.e(TAG, "Current fragment: ${currentFragment?.javaClass?.simpleName}, is NFC capable: ${nfcFragment != null}")
-
-        return nfcFragment
-    }
-
-    /**
-     * Setup HCE card emulation mode for sending data
+     * Setup HCE card emulation mode for SENDING data
      */
     override fun setupHCECardEmulation(
         jsonData: String,
@@ -133,7 +117,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
 
         if (!hceNfcUtils.isNFCAvailable()) {
             Log.w(TAG, "NFC is not available")
-            Toast.makeText(this, "NFC is not available or disabled", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "NFC is not available or disabled", Toast.LENGTH_LONG).show()
             onTimeout()
             return
         }
@@ -160,7 +144,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
                 HCEPaymentService.clearOnDataReceivedCallback()
                 onTimeout()
             }
-        }, 30000) // 30 second timeout
+        }, 60000) // 60 second timeout
     }
 
     /**
@@ -172,11 +156,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
     ) {
         Log.e(TAG, "=== SETUP HCE READER MODE ===")
 
-        if (!hceNfcUtils.isNFCAvailable()) {
-            Log.w(TAG, "NFC is not available")
-            onError("NFC is not available or disabled")
-            return
-        }
+        checkAndDisplayNFCUnavailability(onError)
 
         isReaderModeActive = true
 
@@ -225,11 +205,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         Log.e(TAG, "=== SEND DATA AND RECEIVE RESPONSE ===")
         Log.e(TAG, "Sending data length: ${jsonData.length}")
 
-        if (!hceNfcUtils.isNFCAvailable()) {
-            Log.w(TAG, "NFC is not available")
-            onError("NFC is not available or disabled")
-            return
-        }
+        checkAndDisplayNFCUnavailability (onError)
 
         isReaderModeActive = true
 
@@ -304,6 +280,14 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         HCEPaymentService.clearPendingTransactionData()
         HCEPaymentService.clearOnDataReceivedCallback()
         Log.d(TAG, "HCE card emulation stopped")
+    }
+
+    fun checkAndDisplayNFCUnavailability(onError: (String) -> Unit) {
+        if (!hceNfcUtils.isNFCAvailable()) {
+            Log.w(TAG, "NFC is not available")
+            onError("NFC is not available or disabled")
+            return
+        }
     }
 
     /**
