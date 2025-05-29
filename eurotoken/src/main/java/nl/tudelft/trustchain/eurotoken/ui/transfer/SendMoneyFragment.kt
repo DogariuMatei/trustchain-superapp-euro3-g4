@@ -58,7 +58,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         )
     }
 
-    // Store transaction parameters for Phase 2 execution
+    // Locally store transaction parameters for Phase 2 execution
     private lateinit var transactionParams: TransactionParams
 
     private data class TransactionParams(

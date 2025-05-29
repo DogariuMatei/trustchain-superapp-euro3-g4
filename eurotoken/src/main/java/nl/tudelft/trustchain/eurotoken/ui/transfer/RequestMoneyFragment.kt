@@ -41,19 +41,16 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
         paymentRequestData = requireArguments().getString(ARG_DATA)!!
         Log.d(TAG, "Payment request data: ${paymentRequestData?.take(100)}...")
 
-        // Hide QR code UI (legacy)
         binding.qr.visibility = View.GONE
 
         // Display status
         binding.txtRequestData.text = "Payment request ready for transmission"
 
-        // Start Phase 1 HCE transmission immediately
         startPhase1HCETransmission()
 
         binding.btnContinue.setOnClickListener {
             if (isPhase1Complete) {
                 Log.d(TAG, "Navigating back to activate Phase 2")
-                // Navigate back to TransferFragment with Phase 2 activation signal
                 val args = Bundle()
                 args.putBoolean("phase2_ready", true)
                 findNavController().navigate(R.id.transferFragment, args)
