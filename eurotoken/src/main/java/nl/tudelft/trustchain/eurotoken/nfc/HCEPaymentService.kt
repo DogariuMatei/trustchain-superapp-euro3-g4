@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.eurotoken.nfc
 
+import android.content.Intent
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
@@ -91,6 +92,12 @@ class HCEPaymentService : HostApduService() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "=== HCE SERVICE CREATED ===")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "=== HCE SERVICE STARTED ===")
+        // Return START_STICKY to keep the service alive
+        return START_STICKY
     }
 
     override fun onDestroy() {

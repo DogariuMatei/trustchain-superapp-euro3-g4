@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -53,7 +55,7 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
                 Log.d(TAG, "Navigating back to activate Phase 2")
                 // Navigate back to TransferFragment with Phase 2 activation signal
                 val args = Bundle()
-                args.putBoolean("activate_phase2", true)
+                args.putBoolean("phase2_ready", true)
                 findNavController().navigate(R.id.transferFragment, args)
             } else {
                 Toast.makeText(requireContext(), "Please complete Phase 1 first", Toast.LENGTH_SHORT).show()
@@ -84,15 +86,29 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
                 timeoutSeconds = 30,
                 expectResponse = false,
                 onSuccess = {
-                    // This is called when HCE is set up, not when data is transmitted
                     Log.d(TAG, "HCE card emulation ready - waiting for reader")
+                },
+                onDataTransmitted = {
+                    // This is called when data is actually read by the sender
+                    Log.d(TAG, "Payment request successfully transmitted!")
+                    isPhase1Complete = true
+
+                    // Update UI to show success
+                    updateNFCDialogMessage("Payment request sent!")
+
+                    // Dismiss dialog after a short delay
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        dismissNFCDialog()
+
+                        // Update UI to show Phase 1 is complete
+                        binding.txtRequestData.text = "Payment request sent. Ready for Phase 2."
+                        binding.btnContinue.text = "Continue to Receive Payment"
+                    }, 1500)
                 }
             )
 
             // Update UI to show we're ready
             binding.txtRequestData.text = "Ready to transmit. Hold phones together..."
-
-            // Note: Actual success will be handled when the reader connects and reads the data
         } ?: run {
             Log.e(TAG, "No payment request data available")
             Toast.makeText(

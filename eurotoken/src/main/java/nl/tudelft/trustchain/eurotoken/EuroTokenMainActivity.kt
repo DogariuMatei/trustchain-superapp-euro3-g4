@@ -91,7 +91,7 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
         super.onPause()
         Log.e(TAG, "onPause called")
 
-        // Disable reader mode if active
+        // Only disable reader mode if active
         if (isReaderModeActive) {
             disableReaderMode()
         }

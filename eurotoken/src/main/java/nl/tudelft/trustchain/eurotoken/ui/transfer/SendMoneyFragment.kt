@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -140,6 +142,10 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             Log.d(TAG, "Send button clicked - initiating Phase 2 transaction")
             initiatePhase2Transaction()
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
     }
 
     /**
@@ -285,41 +291,57 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
             Log.d(TAG, "Payment confirmation created: ${paymentConfirmation.toString(2)}")
 
-            // Start HCE service explicitly
-            requireContext().startService(Intent(requireContext(), HCEPaymentService::class.java))
+            // Start HCE service explicitly and ensure it's running
+            val serviceIntent = Intent(requireContext(), HCEPaymentService::class.java)
+            requireContext().startService(serviceIntent)
 
-            // Start HCE card emulation mode to send payment confirmation
             Toast.makeText(
                 requireContext(),
                 "Hold your phone near the recipient's phone to complete the transaction",
                 Toast.LENGTH_LONG
             ).show()
 
-            startHCECardEmulation(
-                jsonData = paymentConfirmation.toString(),
-                message = "Sending payment confirmation...",
-                timeoutSeconds = 30,
-                expectResponse = false,
-                onSuccess = {
-                    Log.d(TAG, "HCE card emulation started successfully")
+            // Give the service a moment to start
+            Handler(Looper.getMainLooper()).postDelayed({
+                startHCECardEmulation(
+                    jsonData = paymentConfirmation.toString(),
+                    message = "Sending payment confirmation...",
+                    timeoutSeconds = 30,
+                    expectResponse = false,
+                    onSuccess = {
+                        Log.d(TAG, "HCE card emulation started successfully")
+                        // Don't navigate here - just log that we're ready
+                    },
+                    onDataTransmitted = {
+                        Log.d(TAG, "Payment confirmation successfully transmitted!")
 
-                    // Send trust score data to recipient
-                    euroTokenCommunity.sendAddressesOfLastTransactions(
-                        transactionRepository.trustChainCommunity.getPeers().find {
-                            it.publicKey.keyToBin().toHex() == transactionParams.recipientPublicKey
-                        } ?: return@startHCECardEmulation
-                    )
+                        // NOW it's safe to complete the transaction
+                        updateNFCDialogMessage("Transaction complete!")
 
-                    Toast.makeText(
-                        requireContext(),
-                        "Transaction sent successfully!",
-                        Toast.LENGTH_LONG
-                    ).show()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            dismissNFCDialog()
 
-                    // Navigate to transaction history
-                    findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
-                }
-            )
+                            // Send trust score data to recipient
+                            val recipientPeer = transactionRepository.trustChainCommunity.getPeers().find {
+                                it.publicKey.keyToBin().toHex() == transactionParams.recipientPublicKey
+                            }
+
+                            recipientPeer?.let {
+                                euroTokenCommunity.sendAddressesOfLastTransactions(it)
+                            }
+
+                            Toast.makeText(
+                                requireContext(),
+                                "Transaction sent successfully!",
+                                Toast.LENGTH_LONG
+                            ).show()
+
+                            // Navigate to transaction history
+                            findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
+                        }, 1500)
+                    }
+                )
+            }, 100) // Small delay to ensure service is ready
 
         } catch (e: Exception) {
             Log.e(TAG, "Error creating offline transaction: ${e.message}", e)

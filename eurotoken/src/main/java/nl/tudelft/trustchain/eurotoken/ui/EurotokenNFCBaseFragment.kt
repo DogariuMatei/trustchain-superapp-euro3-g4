@@ -7,6 +7,7 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.LayoutRes
 import androidx.annotation.RequiresApi
+import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.components.NFCActivationDialog
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -54,6 +55,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
         timeoutSeconds: Int = 30,
         expectResponse: Boolean = false,
         onSuccess: () -> Unit = {},
+        onDataTransmitted: (() -> Unit)? = null,
         onResponseReceived: ((String) -> Unit)? = null
     ) {
         Log.d(TAG, "=== START HCE CARD EMULATION ===")
@@ -62,6 +64,18 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
 
         currentOperation = HCEOperationType.CARD_EMULATION
         showNFCDialog(message, timeoutSeconds)
+
+        // MODIFIED
+        HCEPaymentService.setPendingTransactionData(jsonData)
+        if (onDataTransmitted != null) {
+            HCEPaymentService.setOnDataTransmittedCallback {
+                Log.d(TAG, "Data successfully transmitted")
+                Handler(Looper.getMainLooper()).post {
+                    onDataTransmitted()
+                }
+            }
+        }
+        // END MODIFIED
 
         getHCEHandler()?.setupHCECardEmulation(
             jsonData = jsonData,
@@ -234,7 +248,8 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
 
         when (currentOperation) {
             HCEOperationType.CARD_EMULATION -> {
-                getHCEHandler()?.stopHCECardEmulation()
+                // Don't immediately stop HCE - let it complete the transaction
+                Log.d(TAG, "HCE card emulation active - will clean up after transmission")
             }
             HCEOperationType.READER_MODE, HCEOperationType.SEND_AND_RECEIVE -> {
                 getHCEHandler()?.disableReaderMode()

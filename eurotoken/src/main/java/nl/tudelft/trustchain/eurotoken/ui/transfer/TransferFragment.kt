@@ -116,6 +116,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     private var currentPhase = TransactionPhase.IDLE
+    private var isReadyForPhase2 = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -136,11 +137,11 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         setupUI()
         setupButtonListeners()
 
-        // Check if we should activate Phase 2 immediately
-        if (arguments?.getBoolean("activate_phase2") == true) {
-            Log.d(TAG, "Activating Phase 2 from arguments")
-            activatePhase2Receive()
-            arguments?.remove("activate_phase2") // Clear the flag
+        // Instead, just show a notification that Phase 2 is ready
+        if (arguments?.getBoolean("phase2_ready") == true) {
+            Log.d(TAG, "Phase 2 is ready - user can activate NFC when ready")
+            showPhase2ReadyNotification()
+            arguments?.remove("phase2_ready")
         }
     }
 
@@ -161,6 +162,18 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
 
         binding.edtAmount.addDecimalLimiter()
         updateButtonStates()
+    }
+
+    private fun showPhase2ReadyNotification() {
+        isReadyForPhase2 = true
+        Toast.makeText(
+            requireContext(),
+            "Payment request sent! Activate NFC when ready to receive payment.",
+            Toast.LENGTH_LONG
+        ).show()
+
+        binding.btnSend.text = "Activate NFC to Receive Payment"
+        binding.btnSend.setBackgroundColor(resources.getColor(R.color.green, null))
     }
 
     private fun updateBalanceDisplay() {
@@ -217,11 +230,22 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         // NFC Receive Button - Context-aware for different phases
         binding.btnSend.setOnClickListener {
             when (currentPhase) {
-                TransactionPhase.IDLE -> activatePhase1Receive()
+                TransactionPhase.IDLE -> {
+                    // Check if we're ready for Phase 2
+                    if (isPhase2Ready()) {
+                        activatePhase2Receive()
+                    } else {
+                        activatePhase1Receive()
+                    }
+                }
                 TransactionPhase.WAITING_PHASE1 -> deactivateNFCReceive()
                 TransactionPhase.WAITING_PHASE2 -> deactivateNFCReceive()
             }
         }
+    }
+
+    private fun isPhase2Ready(): Boolean {
+        return isReadyForPhase2
     }
 
     /**
@@ -471,6 +495,9 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 "Payment of ${TransactionRepository.prettyAmount(amount)} received from $displayName!",
                 Toast.LENGTH_LONG
             ).show()
+
+            // Reset ready for phase2 value
+            isReadyForPhase2 = false
 
             // Navigate to transaction history
             deactivateNFCReceive()
