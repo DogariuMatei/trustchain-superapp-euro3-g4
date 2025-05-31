@@ -9,8 +9,8 @@ class UTXO {
     private val bloomFilter: CustomBloomFilter = CustomBloomFilter()
 
     companion object {
-        private const val TOKEN_VALUE = 5
-        private const val TOTAL_VALUE = 100
+        private const val TOKEN_VALUE = 1
+        private const val TOTAL_VALUE = 10
         private const val NUM_TOKENS = TOTAL_VALUE / TOKEN_VALUE
     }
 
@@ -24,7 +24,9 @@ class UTXO {
         return generatedTokenIds.size
     }
 
-    fun sendTokens(numTokens: Int): ByteArray {
+    fun sendTokens(amount: Int): ByteArray {
+        // Logic to convert amount to match token value, but for now assume each token as 1$
+        val numTokens = amount
         if (numTokensAvailable() >= numTokens) {
             val tokensToSend = generatedTokenIds.take(numTokens).toMutableList()
             generatedTokenIds.removeAll(tokensToSend)

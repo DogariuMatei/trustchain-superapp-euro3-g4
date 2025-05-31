@@ -4,8 +4,8 @@ import java.util.BitSet
 import kotlin.math.abs
 
 class CustomBloomFilter(
-    private val size: Int = 1024,
-    private val hashFunctions: Int = 3,
+    private val size: Int = 512,
+    private val hashFunctions: Int = 2,
 ) {
     private val bitArray = BitSet(size)
 
