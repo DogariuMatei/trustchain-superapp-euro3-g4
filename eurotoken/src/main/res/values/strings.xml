@@ -11,4 +11,6 @@
     <string name="trust_scores_menu_item">Trustscores DB</string>
     <string name="utxo_transactions_menu_item">UTXO Transactions DB</string>
     <string name="trust_scores_db_item_score">%d%%</string>
+    <string name="hce_service_description">EuroToken HCE Payment Service</string>
+    <string name="eurotoken_payment_aid_group">EuroToken Payment</string>
 </resources>

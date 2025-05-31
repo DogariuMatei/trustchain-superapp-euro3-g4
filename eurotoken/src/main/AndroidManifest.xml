@@ -1,8 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:tools="http://schemas.android.com/tools"
+        xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- NFC Permission -->
+    <uses-permission android:name="android.permission.NFC" />
+
+    <!-- NFC hardware requirement -->
+    <uses-feature
+            android:name="android.hardware.nfc"
+            android:required="true" />
+
+    <!-- HCE feature -->
+    <uses-feature
+            android:name="android.hardware.nfc.hce"
+            android:required="true" />
 
     <application>
-        <activity android:name=".EuroTokenMainActivity"></activity>
+        <activity
+                android:name=".EuroTokenMainActivity"
+                android:exported="true"
+                android:launchMode="singleTop"
+                tools:targetApi="33">
+        </activity>
+
+        <!-- HCE Service -->
+        <service
+                android:name=".nfc.HCEPaymentService"
+                android:exported="true"
+                android:permission="android.permission.BIND_NFC_SERVICE">
+            <intent-filter>
+                <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+            </intent-filter>
+
+            <meta-data
+                    android:name="android.nfc.cardemulation.host_apdu_service"
+                    android:resource="@xml/aid_list" />
+        </service>
     </application>
 
 </manifest>

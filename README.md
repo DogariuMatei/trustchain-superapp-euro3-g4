@@ -27,7 +27,7 @@ The resulting APK will be stored in `app/build/outputs/apk/debug/app-debug.apk`.
 ### Install
 You can also build and automatically install the app on all connected Android devices with a single command:
 ```
-./gradlew :app:installDebug
+./gradlew :app:installDebug 
 ```
 *Note: It is required to have an Android device connected with USB debugging enabled before running this command.*
 
