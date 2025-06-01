@@ -92,5 +92,5 @@ dependencies {
     implementation "androidx.navigation:navigation-runtime:$nav_version"
     implementation 'androidx.sqlite:sqlite:2.4.0'
     implementation "app.cash.sqldelight:android-driver:$sqldelight_version"
-
+    implementation 'com.google.code.gson:gson:2.13.1'
 }

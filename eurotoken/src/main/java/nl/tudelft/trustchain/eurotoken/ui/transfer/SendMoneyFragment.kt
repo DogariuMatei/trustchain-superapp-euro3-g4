@@ -17,6 +17,7 @@ import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
+import nl.tudelft.trustchain.common.eurotoken.UTXOService
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
@@ -24,6 +25,7 @@ import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
+import com.google.gson.Gson
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money) {
@@ -53,7 +55,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
     private val ownPublicKey by lazy {
         defaultCryptoProvider.keyFromPublicBin(
-            transactionRepository.trustChainCommunity.myPeer.publicKey.keyToBin().toHex()
+            utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex()
                 .hexToBytes()
         )
     }
@@ -125,13 +127,13 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         if (demoModeEnabled) {
             binding.txtBalance.text =
-                TransactionRepository.prettyAmount(transactionRepository.getMyBalance())
+                UTXOService.prettyAmount(utxoService.getMyBalance())
         } else {
             binding.txtBalance.text =
-                TransactionRepository.prettyAmount(transactionRepository.getMyVerifiedBalance())
+                UTXOService.prettyAmount(utxoService.getMyBalance())
         }
         binding.txtOwnPublicKey.text = ownPublicKey.toString()
-        binding.txtAmount.text = TransactionRepository.prettyAmount(amount)
+        binding.txtAmount.text = UTXOService.prettyAmount(amount)
         binding.txtContactPublicKey.text = publicKey
 
         // Display trust score information
@@ -222,11 +224,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             false
         )
 
-        val currentBalance = if (demoModeEnabled) {
-            transactionRepository.getMyBalance()
-        } else {
-            transactionRepository.getMyVerifiedBalance()
-        }
+        val currentBalance = utxoService.getMyBalance()
 
         Log.d(TAG, "Current balance: $currentBalance, Required amount: ${transactionParams.amount}")
 
@@ -253,11 +251,10 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         try {
             // Create the actual blockchain transaction
             Log.d(TAG, "Creating blockchain transaction...")
-            val transactionBlock = transactionRepository.sendTransferProposalSync(
+            /*val transactionBlock = transactionRepository.sendTransferProposalSync(
                 transactionParams.recipientPublicKey.hexToBytes(),
                 transactionParams.amount
             )
-
             if (transactionBlock == null) {
                 Log.e(TAG, "Failed to create transaction block")
                 Toast.makeText(
@@ -266,16 +263,32 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                     Toast.LENGTH_LONG
                 ).show()
                 return
+            }*/
+
+            val utxoTransaction = utxoService.buildUtxoTransactionSync(
+                transactionParams.recipientPublicKey.hexToBytes(),
+                transactionParams.amount
+            )
+            if (utxoTransaction == null) {
+                Log.e(TAG, "Failed to create utxo transaction")
+                Toast.makeText(
+                    requireContext(),
+                    "Failed to create utxo transaction",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
             }
 
-            Log.d(TAG, "Transaction block created successfully")
-            Log.d(TAG, "Block hash: ${transactionBlock.calculateHash().toHex()}")
-            Log.d(TAG, "Sequence number: ${transactionBlock.sequenceNumber}")
+            Log.d(TAG, "Utxo Transaction created successfully")
+            Log.d(TAG, "Utxo Transaction Id: ${utxoTransaction.txId}")
 
             // Create payment confirmation with transaction data
-            val myPeer = transactionRepository.trustChainCommunity.myPeer
+            val myPeer = utxoService.trustChainCommunity.myPeer
             val senderContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(myPeer.publicKey)
 
+
+            val gson = Gson()
+            val utxoTransactionJson = gson.toJson(utxoTransaction)
             val paymentConfirmation = JSONObject()
             paymentConfirmation.put("type", "payment_confirmation")
             paymentConfirmation.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
@@ -284,10 +297,8 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             paymentConfirmation.put("amount", transactionParams.amount)
             paymentConfirmation.put("timestamp", System.currentTimeMillis())
 
-            // Include actual transaction block data
-            paymentConfirmation.put("block_hash", transactionBlock.calculateHash().toHex())
-            paymentConfirmation.put("sequence_number", transactionBlock.sequenceNumber)
-            paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)
+            // Include actual Utxo transaction data
+            paymentConfirmation.put("utxo_transaction", JSONObject(utxoTransactionJson))
 
             Log.d(TAG, "Payment confirmation created: ${paymentConfirmation.toString(2)}")
 

@@ -31,6 +31,8 @@ import nl.tudelft.trustchain.eurotoken.databinding.FragmentTransferEuroBinding
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONException
 import org.json.JSONObject
+import com.google.gson.Gson
+import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -230,7 +232,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     private fun initiatePaymentRequest(amount: Long) {
         Log.d(TAG, "=== INITIATE PAYMENT REQUEST ===")
 
-        val myPeer = transactionRepository.trustChainCommunity.myPeer
+        val myPeer = utxoService.trustChainCommunity.myPeer
         val ownKey = myPeer.publicKey
         val contact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
@@ -279,18 +281,20 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
 
         try {
             // Extract transaction data
+            val gson = Gson()
             val senderPublicKey = paymentConfirmation.optString("sender_public_key")
             val senderName = paymentConfirmation.optString("sender_name")
             val amount = paymentConfirmation.optLong("amount", -1L)
-            val blockHash = paymentConfirmation.optString("block_hash")
-            val sequenceNumber = paymentConfirmation.optLong("sequence_number", -1L)
-            val blockTimestamp = paymentConfirmation.optLong("block_timestamp", -1L)
+            val utxoTransactionJson = paymentConfirmation.getJSONObject("utxo_transaction").toString()
+            val utxoTransaction = gson.fromJson(utxoTransactionJson, UTXOTransaction::class.java)
+            /*val sequenceNumber = paymentConfirmation.optLong("sequence_number", -1L)
+            val blockTimestamp = paymentConfirmation.optLong("block_timestamp", -1L)*/
 
             Log.d(TAG, "Payment confirmation - Amount: $amount, From: ${senderPublicKey.take(20)}..., Name: $senderName")
-            Log.d(TAG, "Block hash: ${blockHash.take(20)}..., Sequence: $sequenceNumber")
+            Log.d(TAG, "TransactionId: ${utxoTransaction.txId.take(20)}...")
 
             // Validate required data
-            if (senderPublicKey.isEmpty() || amount <= 0 || blockHash.isEmpty() || sequenceNumber < 0) {
+            if (senderPublicKey.isEmpty() || amount <= 0 || utxoTransaction.txId.isEmpty()) {
                 Log.e(TAG, "Invalid transaction data")
                 Toast.makeText(requireContext(), "Invalid transaction data received", Toast.LENGTH_LONG).show()
                 return
@@ -301,9 +305,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 senderPublicKey = senderPublicKey,
                 senderName = senderName,
                 amount = amount,
-                blockHash = blockHash,
-                sequenceNumber = sequenceNumber,
-                blockTimestamp = blockTimestamp
+                utxoTransaction = utxoTransaction,
             )
 
             val displayName = if (senderName.isNotEmpty()) senderName else "Unknown"
@@ -434,9 +436,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         senderPublicKey: String,
         senderName: String,
         amount: Long,
-        blockHash: String,
-        sequenceNumber: Long,
-        blockTimestamp: Long
+        utxoTransaction: UTXOTransaction,
     ) {
         Log.d(TAG, "=== PROCESS OFFLINE TRANSACTION ===")
 
@@ -458,13 +458,19 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 }
             }
 
+            // Process the UTXO transaction
+            Log.d(TAG, "Adding received Utxos to UTXOStore")
+            utxoTransaction.outputs.forEach { utxo ->
+                utxoService.store.addUtxo(utxo)
+            }
+
             // TODO:
             // 1. Store the transaction block data locally for later synchronization
             // 2. Validate the transaction cryptographically
             // 3. Update local balance tracking
 
             Log.d(TAG, "Processed offline transaction successfully")
-            Log.d(TAG, "Amount: $amount, From: $senderName, Block: ${blockHash.take(20)}...")
+            Log.d(TAG, "Amount: $amount, From: $senderName, Block: ${utxoTransaction.txId.take(20)}...")
 
         } catch (e: Exception) {
             Log.e(TAG, "Error in processOfflineTransaction: ${e.message}", e)

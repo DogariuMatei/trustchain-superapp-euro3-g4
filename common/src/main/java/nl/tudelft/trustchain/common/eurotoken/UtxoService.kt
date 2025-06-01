@@ -99,11 +99,6 @@ class UTXOService(
         val change = sum - amount
         if (change > 0) outs += UTXO(txid.toHex(), 1, change.toInt(), trustChainCommunity.myPeer.publicKey.keyToBin())
 
-        inputs.forEach { utxo ->
-            val key = utxo.getUTXOIdString().hexToBytes()
-            bloom.add(key)
-        }
-
         // 5) Build the UTXO Transaction
         val utxoTransaction = UTXOTransaction(txid.toHex(), inputs, outs)
 
