@@ -1,6 +1,6 @@
 package nl.tudelft.trustchain.eurotoken
 
-import nl.tudelft.trustchain.eurotoken.db.UTXO
+import nl.tudelft.trustchain.eurotoken.entity.UTXO
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import kotlin.math.max

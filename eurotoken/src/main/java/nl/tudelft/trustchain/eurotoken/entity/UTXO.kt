@@ -1,11 +1,13 @@
-package nl.tudelft.trustchain.eurotoken.db
+package nl.tudelft.trustchain.eurotoken.entity
 import nl.tudelft.ipv8.util.toHex
+import nl.tudelft.trustchain.eurotoken.db.CustomBloomFilter
 
 import kotlin.random.Random
 
 class UTXO {
     private val generatedTokenIds: MutableList<String> = mutableListOf()
     private val receivedTokenIds: MutableList<String> = mutableListOf()
+    private val sentTokenIds: MutableList<String> = mutableListOf()
     private val bloomFilter: CustomBloomFilter = CustomBloomFilter()
 
     companion object {
@@ -29,6 +31,7 @@ class UTXO {
         val numTokens = amount
         if (numTokensAvailable() >= numTokens) {
             val tokensToSend = generatedTokenIds.take(numTokens).toMutableList()
+            sentTokenIds.addAll(tokensToSend)
             generatedTokenIds.removeAll(tokensToSend)
             val serialized = tokensToSend.joinToString(separator = ",")
             return serialized.encodeToByteArray()
@@ -47,6 +50,10 @@ class UTXO {
             bloomFilter.add(tokenId)
             receivedTokenIds.add(tokenId)
         }
+    }
+
+    fun confirmPayment() {
+        sentTokenIds.clear()
     }
 
     fun sendFilter(): ByteArray {
