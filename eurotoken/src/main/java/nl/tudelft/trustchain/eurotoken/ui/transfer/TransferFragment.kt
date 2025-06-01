@@ -458,10 +458,23 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 }
             }
 
+            // Check for double spending
+            if (utxoService.checkDoubleSpending(utxoTransaction)) {
+                Log.e(TAG, "Double spending detected for transaction: ${utxoTransaction.txId}")
+                Toast.makeText(requireContext(), "Double spending detected! Transaction aborted.", Toast.LENGTH_LONG).show()
+                return
+            }
+
             // Process the UTXO transaction
             Log.d(TAG, "Adding received Utxos to UTXOStore")
-            utxoTransaction.outputs.forEach { utxo ->
-                utxoService.store.addUtxo(utxo)
+            utxoTransaction.outputs.forEach { out ->
+                utxoService.addUTXO(out)
+            }
+
+            // Adding spent UTXO to bloom filter
+            Log.d(TAG, "Adding spent UTXOs to bloom filter")
+            utxoTransaction.inputs.forEach { input ->
+                utxoService.removeUTXO(input)
             }
 
             // TODO:

@@ -31,8 +31,11 @@ class UTXOService(
     /*
     * Spend (remove) an existing UTXO
     */
-    fun removeUTXO(txId: String, txIndex: Int) {
-        store.removeUtxo(txId, txIndex)
+    fun removeUTXO(utxo: UTXO) {
+        store.removeUtxo(utxo.txId, utxo.txIndex)
+
+        // Add spent UTXO to bloom filter
+        bloom.add(utxo.getUTXOIdString().toByteArray())
     }
 
     fun getUTXO(txId: String, txIndex: Int): UTXO? {
@@ -76,6 +79,7 @@ class UTXOService(
     ): UTXOTransaction? {
         Log.d("UTXOService", "sending amount: $amount")
         val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
+
         // 1) gather available UTXOs
         val utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
 
@@ -84,7 +88,7 @@ class UTXOService(
             return null
         }
 
-        // 2) select coins (naive: first-fit)
+        // 2) select utxos (naive: first-fit)
         val inputs = mutableListOf<UTXO>()
         var sum = 0L
         for (u in utxos) {
@@ -99,10 +103,21 @@ class UTXOService(
         val change = sum - amount
         if (change > 0) outs += UTXO(txid.toHex(), 1, change.toInt(), trustChainCommunity.myPeer.publicKey.keyToBin())
 
-        // 5) Build the UTXO Transaction
+        // 4) Build the UTXO Transaction
         val utxoTransaction = UTXOTransaction(txid.toHex(), inputs, outs)
 
         return utxoTransaction
+    }
+
+    fun checkDoubleSpending(utxoTransaction: UTXOTransaction): Boolean {
+        // Check if any input UTXO is already spent
+        for (input in utxoTransaction.inputs) {
+            if (bloom.contains(input.getUTXOIdString().toByteArray())) {
+                Log.d("UTXOService", "Double spending detected for input: ${input.getUTXOIdString()}")
+                return true
+            }
+        }
+        return false
     }
 
     /*
