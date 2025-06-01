@@ -25,7 +25,9 @@ import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
 import nl.tudelft.trustchain.common.eurotoken.GatewayStore
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
+import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOService
+import nl.tudelft.trustchain.common.eurotoken.UTXOService.Companion.genesisUtxoId
 import nl.tudelft.trustchain.common.ui.BaseFragment
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
@@ -145,6 +147,18 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
             pref.getBoolean(EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED, false)
         if (demoModeEnabled) {
             TransactionRepository.initialBalance = 1000
+            if (!UTXOService.GENESIS_UTXO_CREATED) {
+                // Create a genesis UTXO for demo mode
+                val genesisUtxo = UTXO(
+                    txId = "genesis_" +
+                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
+                    txIndex = 0,
+                    amount = 10000,
+                    owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin()
+                )
+                utxoService.addUTXO(genesisUtxo)
+                UTXOService.GENESIS_UTXO_CREATED = true
+            }
         } else {
             TransactionRepository.initialBalance = 0
         }

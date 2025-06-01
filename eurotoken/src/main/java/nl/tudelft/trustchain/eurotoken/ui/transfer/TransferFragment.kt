@@ -23,6 +23,7 @@ import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
+import nl.tudelft.trustchain.common.eurotoken.UTXOService
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
@@ -141,7 +142,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     private fun setupUI() {
-        val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
+        val ownKey = utxoService.trustChainCommunity.myPeer.publicKey
         val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
         binding.txtOwnPublicKey.text = ownKey.keyToHash().toHex()
@@ -160,7 +161,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     private fun updateBalanceDisplay() {
-        val ownKey = transactionRepository.trustChainCommunity.myPeer.publicKey
+        val ownKey = utxoService.trustChainCommunity.myPeer.publicKey
         val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
         val pref = requireContext().getSharedPreferences(
@@ -172,13 +173,9 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             false
         )
 
-        val balance = if (demoModeEnabled) {
-            transactionRepository.getMyBalance()
-        } else {
-            transactionRepository.getMyVerifiedBalance()
-        }
+        val balance = utxoService.getMyBalance()
 
-        binding.txtBalance.text = TransactionRepository.prettyAmount(balance)
+        binding.txtBalance.text = UTXOService.prettyAmount(balance)
 
         if (ownContact?.name != null) {
             binding.missingNameLayout.visibility = View.GONE

@@ -25,6 +25,3 @@ SELECT * FROM UTXO WHERE owner = ?;
 
 getUtxo:
 SELECT * FROM UTXO WHERE txId = ? AND txIndex = ?;
-
--- deleteTable:
--- DROP TABLE IF EXISTS UTXO;

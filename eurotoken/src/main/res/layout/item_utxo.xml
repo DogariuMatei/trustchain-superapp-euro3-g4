@@ -19,11 +19,10 @@
         android:textSize="18sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/txtChildAmount"
+        android:id="@+id/txtAmount"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="€42.00"
@@ -32,7 +31,22 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBaseline_toBaselineOf="@id/txtTxIndex" />
 
+    <TextView
+        android:id="@+id/txtTxId"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+        android:textSize="14sp"
+        android:typeface="monospace"
+        android:ellipsize="middle"
+        android:singleLine="true"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/txtTxIndex"
+        app:layout_constraintBottom_toTopOf="@+id/divider" />
+
     <View
+        android:id="@+id/divider"
         android:layout_width="0dp"
         android:layout_height="1dp"
         android:background="?android:attr/listDivider"

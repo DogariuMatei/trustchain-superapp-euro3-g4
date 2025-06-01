@@ -1,5 +1,6 @@
 package nl.tudelft.trustchain.common.eurotoken
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,21 +25,24 @@ class UTXOService(
     /*
     * Add a new UTXO to local state and update commitments
     */
-    /*fun addUTXO(utxo: UTXO) {
-        val key = utxo.txId
-        // trieImpl.put(key, utxo)
-        bloom.add(key)
-        //currentRoot = trieImpl.getRootHash()
-    }*/
+    fun addUTXO(utxo: UTXO) {
+        store.addUtxo(utxo)
+    }
     /*
     * Spend (remove) an existing UTXO
     */
-    /*fun removeUTXO(id: UTXOId) {
-        val key = id.toBytes()
-        trieImpl.remove(key)
-        // TODO: bloom filters cannot delete; rebuild periodically?
-        //currentRoot = trieImpl.getRootHash()
-    }*/
+    fun removeUTXO(txId: String, txIndex: Int) {
+        store.removeUtxo(txId, txIndex)
+    }
+
+    fun getUTXO(txId: String, txIndex: Int): UTXO? {
+        return store.getUtxo(txId, txIndex)
+    }
+
+    fun getUtxosByOwner(owner: ByteArray): List<UTXO> {
+        Log.e("UTXOService", "Got UTXOs for owner: ${owner.toHex()}")
+        return store.getUtxosByOwner(owner)
+    }
 
     fun getMyBalance(): Long {
         val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
@@ -56,7 +60,7 @@ class UTXOService(
         recipient: ByteArray,
         amount: Long
     ): Boolean {
-        Log.d("buildUtxoTransaction", "sending amount: $amount")
+        Log.d("UTXOService", "sending amount: $amount")
         if (getMyBalance() - amount < 0) {
             return false
         }
@@ -70,13 +74,13 @@ class UTXOService(
         recipient: ByteArray,
         amount: Long,
     ): UTXOTransaction? {
-        Log.d("BuildUtxoTransaction", "sending amount: $amount")
+        Log.d("UTXOService", "sending amount: $amount")
         val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
         // 1) gather available UTXOs
         val utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
 
         if (getMyBalance() - amount < 0) {
-            Log.d("BuildUtxoTransaction", "Insufficient funds")
+            Log.d("UTXOService", "Insufficient funds")
             return null
         }
 
@@ -142,5 +146,8 @@ class UTXOService(
                 (abs(amount) % 100).toString()
                     .padStart(2, '0')
         }
+
+        var genesisUtxoId: String? = null
+        var GENESIS_UTXO_CREATED: Boolean = false
     }
 }

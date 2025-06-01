@@ -1,8 +1,11 @@
 package nl.tudelft.trustchain.eurotoken.ui.utxos
 
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
+import androidx.annotation.RequiresApi
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.lifecycleScope
@@ -12,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.mattskala.itemadapter.Item
 import com.mattskala.itemadapter.ItemAdapter
 import kotlinx.coroutines.delay
+import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxoTransactionsBinding
@@ -19,6 +23,7 @@ import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxosBinding
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOService
+import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 
 /**
  * A simple [Fragment] subclass.
@@ -26,7 +31,8 @@ import nl.tudelft.trustchain.common.eurotoken.UTXOService
  * create an instance of this fragment.
  */
 // TODO: Change to fragment_utxos after aggregating txIds
-class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxo_transactions) {
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+class UtxosFragment : EurotokenNFCBaseFragment(R.layout.fragment_utxo_transactions) {
     /*private val binding by viewBinding(FragmentUtxosBinding::bind)*/
     private val binding by viewBinding(FragmentUtxoTransactionsBinding::bind)
 
@@ -44,12 +50,14 @@ class UtxosFragment : EurotokenBaseFragment(R.layout.fragment_utxo_transactions)
         lifecycleScope.launchWhenResumed {
             val items =
                 // TODO: Change this to use *getUtxosById* since this will be part of a second page for the TxIndexs
-                utxoStore.getAllUtxos()
+                utxoService.getUtxosByOwner(utxoService.trustChainCommunity.myPeer.publicKey.keyToBin())
                     .map { utxo: UTXO -> UtxoItem(utxo) }
+            Log.e("UtxosFragment", "Loaded ${items.size} UTXOs")
             adapter.updateItems(items)
             adapter.notifyDataSetChanged()
 
             binding.txtBalance.text = UTXOService.prettyAmount(utxoService.getMyBalance())
+            binding.txtOwnPublicKey.text = utxoService.trustChainCommunity.myPeer.publicKey.keyToHash().toHex()
             delay(1000L)
         }
     }
