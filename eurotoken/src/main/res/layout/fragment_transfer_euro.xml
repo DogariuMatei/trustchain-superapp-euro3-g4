@@ -89,14 +89,14 @@
 
         <!-- Action Buttons -->
         <Button
-            android:id="@+id/btnRequest"
+            android:id="@+id/btnSend"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:text="Request Payment" />
+            android:text="Send Payment" />
 
         <Button
-            android:id="@+id/btnSend"
+            android:id="@+id/btnActivateNFC"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Activate NFC" />

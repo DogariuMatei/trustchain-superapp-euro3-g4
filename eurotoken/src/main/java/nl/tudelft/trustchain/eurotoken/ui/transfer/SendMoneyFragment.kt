@@ -1,7 +1,7 @@
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.util.Log
-import android.content.Context
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -10,15 +10,10 @@ import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.core.content.ContextCompat
 import androidx.navigation.fragment.findNavController
-import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
-import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
-import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
 import nl.tudelft.trustchain.common.util.viewBinding
-import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
@@ -26,46 +21,19 @@ import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@SuppressLint("SetTextI18n")
 class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money) {
 
     companion object {
         private const val TAG = "SendMoneyFragment"
         const val ARG_AMOUNT = "amount"
-        const val ARG_PUBLIC_KEY = "pubkey"
-        const val ARG_NAME = "name"
-        const val TRUSTSCORE_AVERAGE_BOUNDARY = 70
-        const val TRUSTSCORE_LOW_BOUNDARY = 30
     }
-
-    @JvmName("getEuroTokenCommunity1")
-    private fun getEuroTokenCommunity(): nl.tudelft.trustchain.eurotoken.community.EuroTokenCommunity {
-        return getIpv8().getOverlay()
-            ?: throw IllegalStateException("EuroTokenCommunity is not configured")
-    }
-
-    private val euroTokenCommunity by lazy {
-        getEuroTokenCommunity()
-    }
-
-    private var addContact = false
 
     private val binding by viewBinding(FragmentSendMoneyBinding::bind)
 
-    private val ownPublicKey by lazy {
-        defaultCryptoProvider.keyFromPublicBin(
-            transactionRepository.trustChainCommunity.myPeer.publicKey.keyToBin().toHex()
-                .hexToBytes()
-        )
-    }
-
-    // Locally store transaction parameters for Phase 2 execution
-    private lateinit var transactionParams: TransactionParams
-
-    private data class TransactionParams(
-        val recipientPublicKey: String,
-        val amount: Long,
-        val contactName: String
-    )
+    private var senderPayloadData: String? = null
+    private var isPhase1Complete = false
+    private var amount: Long = 0
 
     override fun onViewCreated(
         view: View,
@@ -74,301 +42,157 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         super.onViewCreated(view, savedInstanceState)
         Log.d(TAG, "=== SEND MONEY FRAGMENT VIEW CREATED ===")
 
-        val publicKey = requireArguments().getString(ARG_PUBLIC_KEY)!!
-        val amount = requireArguments().getLong(ARG_AMOUNT)
-        val name = requireArguments().getString(ARG_NAME)!!
+        amount = requireArguments().getLong(ARG_AMOUNT)
+        Log.d(TAG, "Amount to send: $amount")
 
-        Log.d(TAG, "Transaction parameters - Amount: $amount, Recipient: ${publicKey.take(20)}...")
+        // Create sender payload with transaction info
+        createSenderPayload()
 
-        // Store transaction parameters
-        transactionParams = TransactionParams(publicKey, amount, name)
+        // Display status
+        binding.txtSendData.text = "Payment details ready for transmission"
 
-        val key = defaultCryptoProvider.keyFromPublicBin(publicKey.hexToBytes())
-        val contact = ContactStore.getInstance(view.context).getContactFromPublicKey(key)
-        binding.txtContactName.text = contact?.name ?: name
+        startPhase1HCETransmission()
 
-        binding.newContactName.visibility = View.GONE
-
-        if (name.isNotEmpty()) {
-            binding.newContactName.setText(name)
-        }
-
-        if (contact == null) {
-            binding.addContactSwitch.toggle()
-            addContact = true
-            binding.newContactName.visibility = View.VISIBLE
-            binding.newContactName.setText(name)
-        } else {
-            binding.addContactSwitch.visibility = View.GONE
-            binding.newContactName.visibility = View.GONE
-        }
-
-        binding.addContactSwitch.setOnClickListener {
-            addContact = !addContact
-            if (addContact) {
-                binding.newContactName.visibility = View.VISIBLE
+        binding.btnContinue.setOnClickListener {
+            if (isPhase1Complete) {
+                Log.d(TAG, "Navigating back to transfer fragment for Phase 2")
+                val args = Bundle()
+                args.putBoolean("phase2_ready", true)
+                findNavController().navigate(R.id.transferFragment, args)
             } else {
-                binding.newContactName.visibility = View.GONE
+                Toast.makeText(requireContext(), "Please complete Phase 1 first", Toast.LENGTH_SHORT).show()
             }
-        }
-
-        val pref =
-            requireContext().getSharedPreferences(
-                EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
-                Context.MODE_PRIVATE
-            )
-        val demoModeEnabled =
-            pref.getBoolean(
-                EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED,
-                false
-            )
-
-        if (demoModeEnabled) {
-            binding.txtBalance.text =
-                TransactionRepository.prettyAmount(transactionRepository.getMyBalance())
-        } else {
-            binding.txtBalance.text =
-                TransactionRepository.prettyAmount(transactionRepository.getMyVerifiedBalance())
-        }
-        binding.txtOwnPublicKey.text = ownPublicKey.toString()
-        binding.txtAmount.text = TransactionRepository.prettyAmount(amount)
-        binding.txtContactPublicKey.text = publicKey
-
-        // Display trust score information
-        displayTrustScore(publicKey)
-
-        // Handle Send button - This prepares Phase 2 HCE transaction
-        binding.btnSend.setOnClickListener {
-            Log.d(TAG, "Send button clicked - initiating Phase 2 transaction")
-            initiatePhase2Transaction()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-    }
-
-    /**
-     * Display trust score information for the recipient
-     */
-    private fun displayTrustScore(publicKey: String) {
-        val trustScore = trustStore.getScore(publicKey.toByteArray())
-        Log.d(TAG, "Trust score for recipient: $trustScore")
-
-        if (trustScore != null) {
-            if (trustScore >= TRUSTSCORE_AVERAGE_BOUNDARY) {
-                binding.trustScoreWarning.text =
-                    getString(R.string.send_money_trustscore_warning_high, trustScore)
-                binding.trustScoreWarning.setBackgroundColor(
-                    ContextCompat.getColor(
-                        requireContext(),
-                        R.color.android_green
-                    )
-                )
-            } else if (trustScore > TRUSTSCORE_LOW_BOUNDARY) {
-                binding.trustScoreWarning.text =
-                    getString(R.string.send_money_trustscore_warning_average, trustScore)
-                binding.trustScoreWarning.setBackgroundColor(
-                    ContextCompat.getColor(
-                        requireContext(),
-                        R.color.metallic_gold
-                    )
-                )
-            } else {
-                binding.trustScoreWarning.text =
-                    getString(R.string.send_money_trustscore_warning_low, trustScore)
-                binding.trustScoreWarning.setBackgroundColor(
-                    ContextCompat.getColor(
-                        requireContext(),
-                        R.color.red
-                    )
-                )
-            }
-        } else {
-            binding.trustScoreWarning.text =
-                getString(R.string.send_money_trustscore_warning_no_score)
-            binding.trustScoreWarning.setBackgroundColor(
-                ContextCompat.getColor(
-                    requireContext(),
-                    R.color.metallic_gold
-                )
-            )
-            binding.trustScoreWarning.visibility = View.VISIBLE
         }
     }
 
     /**
-     * Initiate Phase 2 HCE transaction
+     * Create sender payload with transaction info and trust data
      */
-    private fun initiatePhase2Transaction() {
-        Log.d(TAG, "=== INITIATE PHASE 2 TRANSACTION ===")
+    private fun createSenderPayload() {
+        Log.d(TAG, "=== CREATE SENDER PAYLOAD ===")
 
-        // Add contact if requested
-        val newName = binding.newContactName.text.toString()
-        if (addContact && newName.isNotEmpty()) {
-            val key = defaultCryptoProvider.keyFromPublicBin(transactionParams.recipientPublicKey.hexToBytes())
-            ContactStore.getInstance(requireContext())
-                .addContact(key, newName)
-            Log.d(TAG, "Contact added: $newName")
-        }
+        val myPeer = transactionRepository.trustChainCommunity.myPeer
+        val ownKey = myPeer.publicKey
+        val contact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
-        // Check if user has sufficient balance
-        val pref = requireContext().getSharedPreferences(
-            EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
-            Context.MODE_PRIVATE
-        )
-        val demoModeEnabled = pref.getBoolean(
-            EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED,
-            false
-        )
+        // Get recent transaction counterparties for trust building
+        val recentTransactions = transactionRepository.getTransactions(10)
+        val recentCounterparties = recentTransactions.map { it.receiver.keyToBin().toHex() }.distinct().take(5)
 
-        val currentBalance = if (demoModeEnabled) {
-            transactionRepository.getMyBalance()
-        } else {
-            transactionRepository.getMyVerifiedBalance()
-        }
+        val senderInfo = JSONObject()
+        senderInfo.put("type", "sender_info")
+        senderInfo.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
+        senderInfo.put("sender_name", contact?.name ?: "")
+        senderInfo.put("amount", amount)
+        senderInfo.put("timestamp", System.currentTimeMillis())
 
-        Log.d(TAG, "Current balance: $currentBalance, Required amount: ${transactionParams.amount}")
+        // Add trust data - recent counterparties for trust score building
+        senderInfo.put("recent_counterparties", recentCounterparties.joinToString(","))
 
-        if (currentBalance < transactionParams.amount) {
-            Log.w(TAG, "Insufficient balance")
+        // Add current balance for transparency
+        val currentBalance = transactionRepository.getMyBalance()
+        senderInfo.put("sender_balance", currentBalance)
+
+        senderPayloadData = senderInfo.toString()
+        Log.d(TAG, "Sender payload created: ${senderPayloadData?.take(200)}...")
+    }
+
+    /**
+     * Start Phase 1 HCE transmission of sender info
+     */
+    private fun startPhase1HCETransmission() {
+        Log.d(TAG, "=== START PHASE 1 HCE TRANSMISSION ===")
+
+        // Start HCE service explicitly
+        requireContext().startService(Intent(requireContext(), HCEPaymentService::class.java))
+
+        senderPayloadData?.let { data ->
             Toast.makeText(
                 requireContext(),
-                "Insufficient balance",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-
-        // Create Phase 2 data and initiate HCE transaction
-        prepareAndSendPhase2Data()
-    }
-
-    /**
-     * Create actual transaction and send via HCE - Phase 2
-     */
-    private fun prepareAndSendPhase2Data() {
-        Log.d(TAG, "=== PREPARE AND SEND PHASE 2 DATA ===")
-
-        try {
-            // Create the actual blockchain transaction
-            Log.d(TAG, "Creating blockchain transaction...")
-            val transactionBlock = transactionRepository.sendTransferProposalSync(
-                transactionParams.recipientPublicKey.hexToBytes(),
-                transactionParams.amount
-            )
-
-            if (transactionBlock == null) {
-                Log.e(TAG, "Failed to create transaction block")
-                Toast.makeText(
-                    requireContext(),
-                    "Failed to create transaction",
-                    Toast.LENGTH_LONG
-                ).show()
-                return
-            }
-
-            Log.d(TAG, "Transaction block created successfully")
-            Log.d(TAG, "Block hash: ${transactionBlock.calculateHash().toHex()}")
-            Log.d(TAG, "Sequence number: ${transactionBlock.sequenceNumber}")
-
-            // Create payment confirmation with transaction data
-            val myPeer = transactionRepository.trustChainCommunity.myPeer
-            val senderContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(myPeer.publicKey)
-
-            val paymentConfirmation = JSONObject()
-            paymentConfirmation.put("type", "payment_confirmation")
-            paymentConfirmation.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
-            paymentConfirmation.put("sender_name", senderContact?.name ?: "")
-            paymentConfirmation.put("recipient_public_key", transactionParams.recipientPublicKey)
-            paymentConfirmation.put("amount", transactionParams.amount)
-            paymentConfirmation.put("timestamp", System.currentTimeMillis())
-
-            // Include actual transaction block data
-            paymentConfirmation.put("block_hash", transactionBlock.calculateHash().toHex())
-            paymentConfirmation.put("sequence_number", transactionBlock.sequenceNumber)
-            paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)
-
-            Log.d(TAG, "Payment confirmation created: ${paymentConfirmation.toString(2)}")
-
-            // Start HCE service explicitly and ensure it's running
-            val serviceIntent = Intent(requireContext(), HCEPaymentService::class.java)
-            requireContext().startService(serviceIntent)
-
-            Toast.makeText(
-                requireContext(),
-                "Hold your phone near the recipient's phone to complete the transaction",
+                "Ask the receiver to activate NFC, then hold phones together",
                 Toast.LENGTH_LONG
             ).show()
 
-            // Give the service a moment to start
-            Handler(Looper.getMainLooper()).postDelayed({
-                startHCECardEmulation(
-                    jsonData = paymentConfirmation.toString(),
-                    message = "Sending payment confirmation...",
-                    timeoutSeconds = 30,
-                    expectResponse = false,
-                    onSuccess = {
-                        Log.d(TAG, "HCE card emulation started successfully")
-                        // Don't navigate here - just log that we're ready
-                    },
-                    onDataTransmitted = {
-                        Log.d(TAG, "Payment confirmation successfully transmitted!")
+            // Use HCE card emulation mode to send sender info
+            startHCECardEmulation(
+                jsonData = data,
+                message = "Waiting for receiver's phone...",
+                timeoutSeconds = 30,
+                expectResponse = false,
+                onSuccess = {
+                    Log.d(TAG, "HCE card emulation ready - waiting for reader")
+                },
+                onDataTransmitted = {
+                    // This is called when data is actually read by the receiver
+                    Log.d(TAG, "Sender info successfully transmitted!")
+                    isPhase1Complete = true
 
-                        // NOW it's safe to complete the transaction
-                        updateNFCDialogMessage("Transaction complete!")
+                    // Update UI to show success
+                    updateNFCDialogMessage("Payment details sent!")
 
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            dismissNFCDialog()
+                    // Dismiss dialog after a short delay
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        dismissNFCDialog()
 
-                            // Send trust score data to recipient
-                            val recipientPeer = transactionRepository.trustChainCommunity.getPeers().find {
-                                it.publicKey.keyToBin().toHex() == transactionParams.recipientPublicKey
-                            }
+                        // Update UI to show Phase 1 is complete
+                        binding.txtSendData.text = "Payment details sent. Ready for Phase 2."
+                        binding.btnContinue.text = "Continue to Send Payment"
+                    }, 1500)
+                }
+            )
 
-                            recipientPeer?.let {
-                                euroTokenCommunity.sendAddressesOfLastTransactions(it)
-                            }
-
-                            Toast.makeText(
-                                requireContext(),
-                                "Transaction sent successfully!",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                            // Navigate to transaction history
-                            findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
-                        }, 1500)
-                    }
-                )
-            }, 100) // Small delay to ensure service is ready
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error creating offline transaction: ${e.message}", e)
+            // Update UI to show we're ready
+            binding.txtSendData.text = "Ready to transmit. Hold phones together..."
+        } ?: run {
+            Log.e(TAG, "No sender payload data available")
             Toast.makeText(
                 requireContext(),
-                "Error creating transaction: ${e.message}",
-                Toast.LENGTH_LONG
+                "Error: No payment data",
+                Toast.LENGTH_SHORT
             ).show()
         }
     }
 
     /**
-     * Handle NFC errors
+     * Allow user to retry Phase 1 transmission
+     */
+    private fun retryPhase1Transmission() {
+        Log.d(TAG, "Retrying Phase 1 transmission")
+        binding.btnContinue.text = "Retry Send"
+        binding.btnContinue.setOnClickListener {
+            startPhase1HCETransmission()
+        }
+    }
+
+    /**
+     * Handle NFC specific errors
      */
     override fun onNFCReadError(error: String) {
-        super.onNFCReadError(error)
         Log.e(TAG, "NFC Error: $error")
         Toast.makeText(requireContext(), "NFC Error: $error", Toast.LENGTH_SHORT).show()
+
+        // Allow retry on error
+        retryPhase1Transmission()
     }
 
     override fun onNFCTimeout() {
         super.onNFCTimeout()
-        Log.w(TAG, "NFC operation timed out")
+        Log.w(TAG, "Phase 1 transmission timed out")
         Toast.makeText(
             requireContext(),
-            "Transaction timed out. Please ensure both phones are close together and try again.",
+            "Send timed out. Make sure the receiver has NFC activated and try again.",
             Toast.LENGTH_LONG
         ).show()
+
+        // Allow retry on timeout
+        retryPhase1Transmission()
+    }
+
+    override fun onNFCOperationCancelled() {
+        super.onNFCOperationCancelled()
+        Log.d(TAG, "Phase 1 transmission cancelled")
+
+        // Allow retry on cancel
+        retryPhase1Transmission()
     }
 }
