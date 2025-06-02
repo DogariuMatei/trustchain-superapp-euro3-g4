@@ -17,8 +17,28 @@ data class UTXO(
     /**
      * The public key of the owner.
      */
-    val owner: ByteArray
+    val owner: ByteArray,
+
+    val spentInTxId: String? = null,
 ) {
+    companion object {
+        fun create(
+            txId: String,
+            txIndex: Int,
+            amount: Int,
+            owner: ByteArray,
+            spentInTxId: String
+        ): UTXO {
+            return UTXO(
+                txId = txId,
+                txIndex = txIndex,
+                amount = amount,
+                owner = owner,
+                spentInTxId = spentInTxId
+            )
+        }
+    }
+
     /**
      * Builds a string representation of the UTXO ID by combining txId and txIndex.
      * Format: "txId:txIndex"
@@ -37,6 +57,7 @@ data class UTXO(
         if (amount != other.amount) return false
         if (txId != other.txId) return false
         if (!owner.contentEquals(other.owner)) return false
+        if (spentInTxId != other.spentInTxId) return false
 
         return true
     }
@@ -46,6 +67,7 @@ data class UTXO(
         result = 31 * result + amount
         result = 31 * result + txId.hashCode()
         result = 31 * result + owner.contentHashCode()
+        result = 31 * result + spentInTxId.hashCode()
         return result
     }
 }

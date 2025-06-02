@@ -10,6 +10,11 @@
         android:label="Transaction History"
         tools:layout="@layout/fragment_transactions" />
     <fragment
+        android:id="@+id/utxoTransactionsFragment"
+        android:name="nl.tudelft.trustchain.eurotoken.ui.utxotransactions.UtxosTransactionsFragment"
+        android:label="UTXO Transactions"
+        tools:layout="@layout/fragment_utxo_transactions" />
+    <fragment
         android:id="@+id/exchangeFragment"
         android:name="nl.tudelft.trustchain.eurotoken.ui.exchange.ExchangeFragment"
         android:label="Buy / Sell"
@@ -69,10 +74,6 @@
         android:id="@+id/trustScoresFragment"
         android:name="nl.tudelft.trustchain.eurotoken.ui.trustscores.TrustScoresFragment"
         android:label="Trust Scores database" />
-    <fragment
-        android:id="@+id/utxoTransactionsFragment"
-        android:name="nl.tudelft.trustchain.eurotoken.ui.utxos.UtxosFragment"
-        android:label="Utxo database" />
     <fragment
         android:id="@+id/destroyMoneyFragment"
         android:name="nl.tudelft.trustchain.eurotoken.ui.exchange.DestroyMoneyFragment"

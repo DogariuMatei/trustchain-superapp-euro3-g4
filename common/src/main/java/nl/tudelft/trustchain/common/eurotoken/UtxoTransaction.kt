@@ -11,11 +11,15 @@ data class UTXOTransaction(
     /** A unique transaction identifier (e.g. SHA‐256 over nonce + inputs). */
     val txId: String,
 
+    val sender: ByteArray,
+
+    val recipient: ByteArray,
+
     /** The UTXO identifiers being consumed by this transaction. */
-    val inputs: List<UTXO>,
+    val inputs: List<UTXO> = emptyList(),
 
     /** The new UTXOs created by this transaction (recipient + optional change). */
-    val outputs: List<UTXO>,
+    val outputs: List<UTXO> = emptyList(),
 
     /** A Bloom filter committing to the set of spent input‐keys. */
     /*val bloomFilter: BitSet,*/
@@ -28,17 +32,25 @@ data class UTXOTransaction(
 
     /** The root hash of the state trie at the point of spending. */
     /*val rootHash: ByteArray,*/
-) { /*{
+) {
     companion object {
-        private fun generateTxId(inputs: List<UTXOId>): ByteArray {
-            // simple example: hash concat of input IDs
-            val md = MessageDigest.getInstance("SHA-256")
-            inputs.sortedBy { it.toString() }
-                .forEach { md.update(it.toBytes()) }
-            return md.digest()
+        fun create(
+            txId: String,
+            sender: ByteArray,
+            recipient: ByteArray,
+            inputs: List<UTXO>,
+            outputs: List<UTXO>
+        ): UTXOTransaction {
+            return UTXOTransaction(
+                txId = txId,
+                sender = sender,
+                recipient = recipient,
+                inputs = inputs,
+                outputs = outputs
+            )
         }
     }
-}*/
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

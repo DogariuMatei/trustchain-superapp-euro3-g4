@@ -4,7 +4,16 @@ CREATE TABLE IF NOT EXISTS UTXO (
     txIndex INTEGER NOT NULL DEFAULT 0,
     amount INTEGER NOT NULL DEFAULT 0,
     owner BLOB NOT NULL,
-    PRIMARY KEY (txId, txIndex)
+    spentInTxId BLOB,
+    PRIMARY KEY (txId, txIndex),
+    FOREIGN KEY(txId) REFERENCES UTXOTransaction(txId),
+    FOREIGN KEY(spentInTxId) REFERENCES UTXOTransaction(txId)
+);
+
+CREATE TABLE IF NOT EXISTS UTXOTransaction (
+    txId BLOB NOT NULL PRIMARY KEY,
+    sender BLOB NOT NULL,
+    recipient BLOB NOT NULL
 );
 
 getAllUtxos:
@@ -23,5 +32,17 @@ DELETE FROM UTXO WHERE txId = ? AND txIndex = ?;
 getUtxosByOwner:
 SELECT * FROM UTXO WHERE owner = ?;
 
+getUtxoTransactionsByParticipation:
+SELECT * FROM UTXOTransaction
+WHERE sender = ? OR recipient = ?;
+
 getUtxo:
 SELECT * FROM UTXO WHERE txId = ? AND txIndex = ?;
+
+addUTXOTransaction:
+INSERT INTO UTXOTransaction (txId, sender, recipient)
+VALUES (?, ?, ?);
+
+updateSpentUtxo:
+UPDATE UTXO SET spentInTxId = ?
+WHERE txId = ? AND txIndex = ?;

@@ -33,6 +33,8 @@ import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
 import nl.tudelft.trustchain.common.eurotoken.UTXOStore
+import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
+
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(contentLayoutId) {
     protected val logger = KotlinLogging.logger {}
@@ -154,9 +156,19 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
                         utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
                     txIndex = 0,
                     amount = 10000,
-                    owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin()
+                    owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
                 )
+
                 utxoService.addUTXO(genesisUtxo)
+
+                val genesisTransaction = UTXOTransaction(
+                    "genesis_" +
+                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
+                    "genesis_".toByteArray(),
+                    utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
+                    listOf(genesisUtxo)
+                )
+                utxoService.addUTXOTransaction(genesisTransaction)
                 UTXOService.GENESIS_UTXO_CREATED = true
             }
         } else {

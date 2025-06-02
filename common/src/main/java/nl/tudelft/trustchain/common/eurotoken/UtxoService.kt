@@ -47,6 +47,11 @@ class UTXOService(
         return store.getUtxosByOwner(owner)
     }
 
+    fun getUtxoTransactionsByParticipation(myPublicKey: ByteArray): List<UTXOTransaction> {
+        Log.e("UTXOService", "Got UTXO Transactions for participant: ${myPublicKey.toHex()}")
+        return store.getUtxoTransactionsByParticipation(myPublicKey)
+    }
+
     fun getMyBalance(): Long {
         val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
         val available_utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
@@ -104,7 +109,7 @@ class UTXOService(
         if (change > 0) outs += UTXO(txid.toHex(), 1, change.toInt(), trustChainCommunity.myPeer.publicKey.keyToBin())
 
         // 4) Build the UTXO Transaction
-        val utxoTransaction = UTXOTransaction(txid.toHex(), inputs, outs)
+        val utxoTransaction = UTXOTransaction.create(txid.toHex(), myPublicKey, recipient, inputs, outs)
 
         return utxoTransaction
     }
@@ -118,6 +123,19 @@ class UTXOService(
             }
         }
         return false
+    }
+
+    fun addUTXOTransaction(utxoTransaction: UTXOTransaction) {
+        val success = store.addUTXOTransaction(utxoTransaction)
+        if (success) {
+            Log.d("UTXOService", "UTXOTransaction added successfully: ${utxoTransaction.txId}")
+            // Update bloom filter with inputs
+            utxoTransaction.inputs.forEach { input ->
+                bloom.add(input.getUTXOIdString().toByteArray())
+            }
+        } else {
+            Log.e("UTXOService", "Failed to add UTXOTransaction: ${utxoTransaction.txId}")
+        }
     }
 
     /*

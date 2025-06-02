@@ -147,7 +147,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         val ownKey = utxoService.trustChainCommunity.myPeer.publicKey
         val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
-        binding.txtOwnPublicKey.text = ownKey.keyToHash().toHex()
+        binding.txtOwnPublicKey.text = ownKey.keyToBin().toHex()
         updateBalanceDisplay()
 
         if (ownContact?.name != null) {
@@ -465,17 +465,8 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 return
             }
 
-            // Process the UTXO transaction
-            Log.d(TAG, "Adding received Utxos to UTXOStore")
-            utxoTransaction.outputs.forEach { out ->
-                utxoService.addUTXO(out)
-            }
-
-            // Adding spent UTXO to bloom filter
-            Log.d(TAG, "Adding spent UTXOs to bloom filter")
-            utxoTransaction.inputs.forEach { input ->
-                utxoService.removeUTXO(input)
-            }
+            // Add the UTXO transaction to the store
+            utxoService.addUTXOTransaction(utxoTransaction)
 
             // TODO:
             // 1. Store the transaction block data locally for later synchronization

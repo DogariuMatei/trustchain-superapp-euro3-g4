@@ -31,7 +31,7 @@ class BloomFilter {
      */
     fun add(item: ByteArray) {
         val primaryHash = primaryHash.hashBytes(item).asLong().toULong()
-        val secondaryHash = secondaryHash.hashBytes(item).asLong().toULong()
+        val secondaryHash = secondaryHash.hashBytes(item).asInt().toULong() and 0xFFFFFFFFu
         for (i in 1..hashFunctionCount) {
             val idx = computeHash(primaryHash, secondaryHash, i)
             bitset.set(idx)
@@ -43,7 +43,7 @@ class BloomFilter {
      */
     fun contains(item: ByteArray): Boolean {
         val primaryHash = primaryHash.hashBytes(item).asLong().toULong()
-        val secondaryHash = secondaryHash.hashBytes(item).asLong().toULong()
+        val secondaryHash = secondaryHash.hashBytes(item).asInt().toULong() and 0xFFFFFFFFu
         for (i in 1..hashFunctionCount) {
             val idx = computeHash(primaryHash, secondaryHash, i)
             if (!bitset.get(idx)) return false

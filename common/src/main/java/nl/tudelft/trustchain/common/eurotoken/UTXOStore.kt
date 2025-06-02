@@ -12,9 +12,18 @@ open class UTXOStore(val database: Database) {
             txId: ByteArray,
             txIndex: Long,
             amount: Long,
-            owner: ByteArray
+            owner: ByteArray,
+            spentInTxId: ByteArray?
         ->
-        UTXO(txId.toHex(), txIndex.toInt(), amount.toInt(), owner)
+        UTXO(txId.toHex(), txIndex.toInt(), amount.toInt(), owner, spentInTxId?.toHex())
+    }
+
+    private val utxoTransactionMapper = {
+            txId: ByteArray,
+            sender: ByteArray,
+            recipient: ByteArray
+        ->
+        UTXOTransaction(txId.toHex(), sender, recipient)
     }
 
     /**
@@ -31,6 +40,18 @@ open class UTXOStore(val database: Database) {
         return database.dbUtxoQueries.getUtxosByOwner(owner, utxoMapper).executeAsList()
     }
 
+    fun updateSpentUtxo(txId: String, txIndex: Int, spentInTxId: String) {
+        database.dbUtxoQueries.updateSpentUtxo(
+            spentInTxId.hexToBytes(),
+            txId.hexToBytes(),
+            txIndex.toLong(),
+        )
+    }
+
+    fun getUtxoTransactionsByParticipation(owner: ByteArray): List<UTXOTransaction> {
+        return database.dbUtxoQueries.getUtxoTransactionsByParticipation(owner, owner, utxoTransactionMapper).executeAsList()
+    }
+
     fun getUtxosById(txId: String): List<UTXO> {
         return database.dbUtxoQueries.getUtxosById(txId.hexToBytes(), utxoMapper).executeAsList()
     }
@@ -45,6 +66,38 @@ open class UTXOStore(val database: Database) {
 
     fun removeUtxo(txId: String, txIndex: Int) {
         database.dbUtxoQueries.removeUtxo(txId.hexToBytes(), txIndex.toLong())
+    }
+
+    /**
+     * Queries related to UTXO Transactions.
+     */
+
+    fun addUTXOTransaction(utxoTransaction: UTXOTransaction, maxRetries: Int = 3): Boolean {
+        var attempt = 0
+        var success = false
+        while (!success && attempt < maxRetries) {
+            try {
+                database.transaction {
+                    database.dbUtxoQueries.addUTXOTransaction(utxoTransaction.txId.hexToBytes(), utxoTransaction.sender, utxoTransaction.recipient)
+
+                    for (input in utxoTransaction.inputs) {
+                        updateSpentUtxo(input.txId, input.txIndex, utxoTransaction.txId)
+                    }
+
+                    for (output in utxoTransaction.outputs) {
+                        addUtxo(output)
+                    }
+                }
+                success = true
+            }
+            catch (e: Exception) {
+                attempt++
+                if (attempt >= maxRetries) {
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     /**

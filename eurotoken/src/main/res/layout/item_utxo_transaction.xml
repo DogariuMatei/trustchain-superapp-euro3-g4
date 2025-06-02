@@ -15,38 +15,48 @@
         android:src="@drawable/ic_baseline_expand_more_24"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"/>
-
-    <TextView
-        android:id="@+id/txtSumAmount"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="123€"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        app:layout_constraintStart_toEndOf="@id/ivExpandToggle"
-        app:layout_constraintTop_toTopOf="parent"/>
+        app:layout_constraintBottom_toBottomOf="parent" />
 
     <TextView
         android:id="@+id/txtGroupTxId"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:ellipsize="middle"
-        android:lines="1"
+        android:maxLines="1"
         android:text="a1b2c3…9z0"
         android:textSize="14sp"
-        app:layout_constraintStart_toEndOf="@id/txtSumAmount"
-        app:layout_constraintEnd_toStartOf="@id/txtCount"
-        app:layout_constraintBaseline_toBaselineOf="@id/txtSumAmount"/>
+        android:textStyle="bold"
+        app:layout_constraintStart_toEndOf="@id/ivExpandToggle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"/>
 
     <TextView
-        android:id="@+id/txtCount"
-        android:layout_width="wrap_content"
+        android:id="@+id/txtSender"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="(3)"
-        android:textSize="14sp"
-        android:textColor="#777"
+        android:ellipsize="middle"
+        android:maxLines="1"
+        android:text="Sender: abcdef…"
+        android:textSize="12sp"
+        android:textColor="#555"
+        app:layout_constraintStart_toStartOf="@id/txtGroupTxId"
+        app:layout_constraintTop_toBottomOf="@id/txtGroupTxId"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <TextView
+        android:id="@+id/txtReceiver"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:ellipsize="middle"
+        android:maxLines="1"
+        android:text="Recipient: 123456…"
+        android:textSize="12sp"
+        android:textColor="#555"
+        app:layout_constraintStart_toStartOf="@id/txtGroupTxId"
+        app:layout_constraintTop_toBottomOf="@id/txtSender"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBaseline_toBaselineOf="@id/txtSumAmount"/>
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

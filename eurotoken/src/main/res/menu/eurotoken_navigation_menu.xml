@@ -6,6 +6,10 @@
         android:icon="@drawable/ic_baseline_euro_symbol_24"
         android:title="Balance" />
     <item
+        android:id="@+id/utxoTransactionsFragment"
+        android:icon="@drawable/ic_baseline_bitcoin"
+        android:title="UTXO Transactions" />
+    <item
         android:id="@+id/transactionsFragment"
         android:icon="@drawable/ic_baseline_trans_hist_alt_24"
         android:title="Transaction History" />
