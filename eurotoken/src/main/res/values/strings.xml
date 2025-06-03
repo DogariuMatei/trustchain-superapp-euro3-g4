@@ -8,6 +8,7 @@
     <string name="change_name">Change name</string>
     <string name="manage_gateways">Manage gateways</string>
     <string name="toggle_demo_mode">Turn %s Demo Mode</string>
+    <string name="create_genesis_utxo">Create Genesis UTXO</string>
     <string name="trust_scores_menu_item">Trustscores DB</string>
     <string name="utxo_transactions_menu_item">UTXO Transactions DB</string>
     <string name="trust_scores_db_item_score">%d%%</string>

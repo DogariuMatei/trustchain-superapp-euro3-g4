@@ -458,15 +458,12 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 }
             }
 
-            // Check for double spending
-            if (utxoService.checkDoubleSpending(utxoTransaction)) {
-                Log.e(TAG, "Double spending detected for transaction: ${utxoTransaction.txId}")
-                Toast.makeText(requireContext(), "Double spending detected! Transaction aborted.", Toast.LENGTH_LONG).show()
-                return
-            }
-
             // Add the UTXO transaction to the store
-            utxoService.addUTXOTransaction(utxoTransaction)
+            val success = utxoService.addUTXOTransaction(utxoTransaction)
+            if(!success) {
+                Log.e(TAG, "Failed to add UTXO transaction: ${utxoTransaction.txId}")
+                Toast.makeText(requireContext(), "Failed to process transaction", Toast.LENGTH_LONG).show()
+            }
 
             // TODO:
             // 1. Store the transaction block data locally for later synchronization

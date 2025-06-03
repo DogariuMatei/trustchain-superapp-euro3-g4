@@ -2,6 +2,7 @@ package nl.tudelft.trustchain.common.eurotoken
 
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -58,7 +59,7 @@ class UTXOService(
     }
 
     fun getMyBalance(): Long {
-        val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
+        val myPublicKey = trustChainCommunity.myPeer.publicKey.keyToBin()
         val available_utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
 
         var balance = 0L
@@ -88,7 +89,7 @@ class UTXOService(
         amount: Long,
     ): UTXOTransaction? {
         Log.d("UTXOService", "sending amount: $amount")
-        val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
+        val myPublicKey = trustChainCommunity.myPeer.publicKey.keyToBin()
 
         // 1) gather available UTXOs
         val utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
@@ -130,17 +131,27 @@ class UTXOService(
         return false
     }
 
-    fun addUTXOTransaction(utxoTransaction: UTXOTransaction) {
+    fun addUTXOTransaction(utxoTransaction: UTXOTransaction): Boolean {
+        // Check for double spending
+        if (checkDoubleSpending(utxoTransaction)) {
+            Log.e("UTXOService", "Double spending detected for transaction: ${utxoTransaction.txId}")
+            return false
+        }
+
         val success = store.addUTXOTransaction(utxoTransaction)
         if (success) {
             Log.d("UTXOService", "UTXOTransaction added successfully: ${utxoTransaction.txId}")
             // Update bloom filter with inputs
             utxoTransaction.inputs.forEach { input ->
                 bloom.add(input.getUTXOIdString().toByteArray())
+                return true
             }
-        } else {
-            Log.e("UTXOService", "Failed to add UTXOTransaction: ${utxoTransaction.txId}")
         }
+        else {
+            Log.e("UTXOService", "Failed to add UTXOTransaction: ${utxoTransaction.txId}")
+            return false
+        }
+        return false
     }
 
     companion object {
@@ -149,7 +160,5 @@ class UTXOService(
                 (abs(amount) % 100).toString()
                     .padStart(2, '0')
         }
-
-        var GENESIS_UTXO_CREATED: Boolean = false
     }
 }

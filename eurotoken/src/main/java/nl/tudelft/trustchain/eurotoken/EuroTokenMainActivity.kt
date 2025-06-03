@@ -296,5 +296,6 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
     object EurotokenPreferences {
         const val EUROTOKEN_SHARED_PREF_NAME = "eurotoken"
         const val DEMO_MODE_ENABLED = "demo_mode_enabled"
+        const val GENESIS_UTXO_CREATED = "genesis_utxo_created"
     }
 }

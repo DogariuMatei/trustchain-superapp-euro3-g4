@@ -133,6 +133,57 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
     ) {
         inflater.inflate(R.menu.eurotoken_options, menu)
         menu.findItem(R.id.toggleDemoMode).setTitle(getDemoModeMenuItemText())
+
+        val sharedPreferences =
+            requireContext().getSharedPreferences(
+                EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
+                Context.MODE_PRIVATE
+            )
+        val genesisCreated = sharedPreferences.getBoolean(
+            EuroTokenMainActivity.EurotokenPreferences.GENESIS_UTXO_CREATED, false)
+
+        val item = menu.findItem(R.id.createGenesisUtxo)
+        item.setTitle(getString(R.string.create_genesis_utxo))
+        item.isEnabled = !genesisCreated
+    }
+
+    private fun createGenesisUTXO() {
+        val genesisUtxo = UTXO(
+            txId = "genesis_" +
+                utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            txIndex = 0,
+            amount = 10000,
+            owner = "_genesis_".toByteArray(),
+        )
+
+        utxoService.addUTXO(genesisUtxo)
+
+        val outputUTXO = UTXO(
+            txId = "genesis_" +
+                utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            txIndex = 1,
+            amount = 10000,
+            owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin()
+        )
+
+        Log.e("GENESIS", "Genesis txId: ${outputUTXO.txId}")
+
+        val genesisTransaction = UTXOTransaction(
+            "genesis_" +
+                utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            "_genesis_".toByteArray(),
+            utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
+            listOf(genesisUtxo),
+            listOf(outputUTXO)
+        )
+        val success = utxoService.addUTXOTransaction(genesisTransaction)
+        if(!success) {
+            Log.e("GENESIS", "Failed to add genesis transaction")
+            Toast.makeText(requireContext(), "Failed to add genesis transaction", Toast.LENGTH_LONG).show()
+        } else {
+            Log.e("GENESIS", "Genesis transaction added successfully")
+            Toast.makeText(requireContext(), "Genesis transaction added successfully", Toast.LENGTH_LONG).show()
+        }
     }
 
     /**
@@ -148,39 +199,6 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
             pref.getBoolean(EuroTokenMainActivity.EurotokenPreferences.DEMO_MODE_ENABLED, false)
         if (demoModeEnabled) {
             TransactionRepository.initialBalance = 1000
-            if (!UTXOService.GENESIS_UTXO_CREATED) {
-                // Create a genesis UTXO for demo mode
-                val genesisUtxo = UTXO(
-                    txId = "genesis_" +
-                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
-                    txIndex = 0,
-                    amount = 10000,
-                    owner = "_genesis_".toByteArray(),
-                )
-
-                utxoService.addUTXO(genesisUtxo)
-
-                val outputUTXO = UTXO(
-                    txId = "genesis_" +
-                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
-                    txIndex = 1,
-                    amount = 10000,
-                    owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin()
-                )
-
-                Log.e("GENESIS", "Genesis txId: ${outputUTXO.txId}")
-
-                val genesisTransaction = UTXOTransaction(
-                    "genesis_" +
-                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
-                    "_genesis_".toByteArray(),
-                    utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
-                    listOf(genesisUtxo),
-                    listOf(outputUTXO)
-                )
-                utxoService.addUTXOTransaction(genesisTransaction)
-                UTXOService.GENESIS_UTXO_CREATED = true
-            }
         } else {
             TransactionRepository.initialBalance = 0
         }
@@ -239,6 +257,35 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
                 edit.commit()
 
                 item.setTitle(getDemoModeMenuItemText())
+                true
+            }
+
+            R.id.createGenesisUtxo -> {
+                val sharedPreferences =
+                    requireContext().getSharedPreferences(
+                        EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
+                        Context.MODE_PRIVATE
+                    )
+                val genesisCreated = sharedPreferences.getBoolean(
+                    EuroTokenMainActivity.EurotokenPreferences.GENESIS_UTXO_CREATED, false)
+                if (genesisCreated) {
+                    Toast.makeText(requireContext(), "Genesis UTXO already created", Toast.LENGTH_SHORT).show()
+                    return true
+                }
+
+                // Create a genesis UTXO for demo mode
+                val edit = sharedPreferences.edit()
+                edit.putBoolean(
+                    EuroTokenMainActivity.EurotokenPreferences.GENESIS_UTXO_CREATED,
+                    !sharedPreferences.getBoolean(
+                        EuroTokenMainActivity.EurotokenPreferences.GENESIS_UTXO_CREATED,
+                        false
+                    )
+                )
+                edit.commit()
+
+                createGenesisUTXO()
+                requireActivity().invalidateOptionsMenu()
                 true
             }
 
