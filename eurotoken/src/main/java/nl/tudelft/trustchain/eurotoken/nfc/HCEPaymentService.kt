@@ -249,6 +249,12 @@ class HCEPaymentService : HostApduService() {
         Log.d(TAG, "Deactivation reason: ${getDeactivationReasonString(reason)}")
     }
 
+    fun clearOnDataTransmittedCallback() {
+        Log.d(TAG, "Clearing data transmitted callback")
+        onDataTransmittedCallback = null
+    }
+
+
     private fun getDeactivationReasonString(reason: Int): String {
         return when (reason) {
             DEACTIVATION_LINK_LOSS -> "LINK_LOSS"

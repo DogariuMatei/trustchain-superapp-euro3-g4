@@ -4,6 +4,8 @@ import android.util.Log
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -18,12 +20,13 @@ import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentReceiveMoneyBinding
-import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
+import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
+import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONException
 import org.json.JSONObject
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-class ReceiveMoneyFragment : EurotokenBaseFragment(R.layout.fragment_receive_money) {
+class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_money) {
 
     companion object {
         private const val TAG = "ReceiveMoneyFragment"
@@ -67,6 +70,7 @@ class ReceiveMoneyFragment : EurotokenBaseFragment(R.layout.fragment_receive_mon
             parseSenderData(senderDataJson)
             setupUI()
             displayTrustScore()
+
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing sender data: ${e.message}")
             Toast.makeText(requireContext(), "Invalid sender data", Toast.LENGTH_LONG).show()
@@ -174,9 +178,9 @@ class ReceiveMoneyFragment : EurotokenBaseFragment(R.layout.fragment_receive_mon
         binding.txtBalance.text = TransactionRepository.prettyAmount(balance)
         binding.txtOwnPublicKey.text = ownPublicKey.toString()
 
-        // Setup trust button
+        // Setup trust button - now starts Phase 2 directly
         binding.btnTrustSender.setOnClickListener {
-            Log.d(TAG, "Trust Sender button clicked")
+            Log.d(TAG, "Trust Sender button clicked - starting Phase 2")
             proceedWithTransaction()
         }
     }
@@ -219,7 +223,7 @@ class ReceiveMoneyFragment : EurotokenBaseFragment(R.layout.fragment_receive_mon
     }
 
     /**
-     * Proceed with transaction - save contact and navigate back for Phase 2
+     * Proceed with transaction - save contact and start Phase 2 directly
      */
     private fun proceedWithTransaction() {
         Log.d(TAG, "=== PROCEED WITH TRANSACTION ===")
@@ -232,17 +236,222 @@ class ReceiveMoneyFragment : EurotokenBaseFragment(R.layout.fragment_receive_mon
             Log.d(TAG, "Contact added: $newName")
         }
 
+        // Start Phase 2 receiver mode immediately
+        startPhase2Receive()
+    }
+
+    /**
+     * Start Phase 2 - Send receiver confirmation then wait for payment
+     */
+    private fun startPhase2Receive() {
+        Log.d(TAG, "=== START PHASE 2 RECEIVE ===")
+
+        // Clear any lingering HCE data from Phase 1
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
+
+        val myPeer = transactionRepository.trustChainCommunity.myPeer
+        val receiverConfirmation = JSONObject()
+        receiverConfirmation.put("type", "receiver_ready")
+        receiverConfirmation.put("receiver_public_key", myPeer.publicKey.keyToBin().toHex())
+        receiverConfirmation.put("timestamp", System.currentTimeMillis())
+
+        Log.d(TAG, "Sending receiver confirmation: ${receiverConfirmation.toString().take(100)}...")
+
         Toast.makeText(
             requireContext(),
-            "Ready for Phase 2. Return to Balance screen and activate NFC to receive payment.",
+            "Ready to receive payment. Hold phones together when sender is ready.",
             Toast.LENGTH_LONG
         ).show()
 
-        // Navigate back to transfer fragment with Phase 2 ready flag
-        val args = Bundle()
-        args.putBoolean("phase2_ready", true)
-        args.putString("expected_sender", senderInfo.senderPublicKey)
-        args.putLong("expected_amount", senderInfo.amount)
-        findNavController().navigate(R.id.transferFragment, args)
+        // First send receiver confirmation via card emulation
+        startHCECardEmulation(
+            jsonData = receiverConfirmation.toString(),
+            message = "Confirming with sender...",
+            timeoutSeconds = 30,
+            expectResponse = false,
+            onDataTransmitted = {
+                Log.d(TAG, "Receiver confirmation sent, switching to reader mode")
+                updateNFCDialogMessage("Waiting for payment...")
+
+                // Short delay then switch to reader mode for payment
+                Handler(Looper.getMainLooper()).postDelayed({
+                    switchToPaymentReceiveMode()
+                }, 500)
+            }
+        )
+    }
+
+    /**
+     * Switch to reader mode to receive payment confirmation
+     */
+    private fun switchToPaymentReceiveMode() {
+        Log.d(TAG, "=== SWITCH TO PAYMENT RECEIVE MODE ===")
+
+        // Clear any old HCE data before starting reader mode
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
+
+        startHCEReaderMode(
+            message = "Receiving payment...",
+            timeoutSeconds = 60,
+            onDataReceived = { paymentData ->
+                Log.d(TAG, "Received payment confirmation: ${paymentData.take(100)}...")
+                Log.d(TAG, "Full payment data type check: ${JSONObject(paymentData).optString("type")}")
+                handlePaymentConfirmation(paymentData)
+            }
+        )
+    }
+
+    /**
+     * Handle payment confirmation from sender
+     */
+    private fun handlePaymentConfirmation(jsonData: String) {
+        Log.d(TAG, "=== HANDLE PAYMENT CONFIRMATION ===")
+
+        try {
+            val paymentConfirmation = JSONObject(jsonData)
+            val dataType = paymentConfirmation.optString("type")
+
+            if (dataType == "payment_confirmation") {
+                val senderPublicKey = paymentConfirmation.optString("sender_public_key")
+                val amount = paymentConfirmation.optLong("amount", -1L)
+
+                // Validate this matches expected sender/amount
+                if (senderPublicKey == senderInfo.senderPublicKey && amount == senderInfo.amount) {
+                    processReceivedPayment(paymentConfirmation)
+                } else {
+                    Log.e(TAG, "Payment details don't match - Expected: ${senderInfo.senderPublicKey.take(10)}/$senderInfo.amount, Got: ${senderPublicKey.take(10)}/$amount")
+                    Toast.makeText(requireContext(), "Payment details don't match expected values", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                Log.e(TAG, "Invalid payment confirmation type: $dataType")
+                Toast.makeText(requireContext(), "Invalid payment confirmation", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: JSONException) {
+            Log.e(TAG, "Error parsing payment confirmation: ${e.message}")
+            onNFCReadError("Invalid payment data format")
+        }
+    }
+
+    /**
+     * Process received payment and complete transaction
+     */
+    private fun processReceivedPayment(paymentConfirmation: JSONObject) {
+        Log.d(TAG, "=== PROCESS RECEIVED PAYMENT ===")
+
+        val senderPublicKey = paymentConfirmation.optString("sender_public_key")
+        val senderName = paymentConfirmation.optString("sender_name")
+        val amount = paymentConfirmation.optLong("amount", -1L)
+        val blockHash = paymentConfirmation.optString("block_hash")
+        val sequenceNumber = paymentConfirmation.optLong("sequence_number", -1L)
+        val blockTimestamp = paymentConfirmation.optLong("block_timestamp", -1L)
+
+        // Process the offline transaction
+        processOfflineTransaction(
+            senderPublicKey = senderPublicKey,
+            senderName = senderName,
+            amount = amount,
+            blockHash = blockHash,
+            sequenceNumber = sequenceNumber,
+            blockTimestamp = blockTimestamp
+        )
+
+        // Update UI and navigate
+        updateNFCDialogMessage("Payment received!")
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            dismissNFCDialog()
+            completeTransaction(senderName, amount)
+        }, 1500)
+    }
+
+    /**
+     * Process offline transaction data received via NFC
+     */
+    private fun processOfflineTransaction(
+        senderPublicKey: String,
+        senderName: String,
+        amount: Long,
+        blockHash: String,
+        sequenceNumber: Long,
+        blockTimestamp: Long
+    ) {
+        Log.d(TAG, "=== PROCESS OFFLINE TRANSACTION ===")
+
+        try {
+            // Convert sender public key
+            val senderKeyBytes = senderPublicKey.hexToBytes()
+
+            // Update trust score for sender
+            Log.d(TAG, "Incrementing trust score for sender")
+            trustStore.incrementTrust(senderKeyBytes)
+
+            // Add contact if we have a name and don't already have this contact
+            if (senderName.isNotEmpty()) {
+                val senderKey = defaultCryptoProvider.keyFromPublicBin(senderKeyBytes)
+                val existingContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(senderKey)
+                if (existingContact == null) {
+                    ContactStore.getInstance(requireContext()).addContact(senderKey, senderName)
+                    Log.d(TAG, "Added new contact: $senderName")
+                }
+            }
+
+            // TODO: Store the transaction block data locally for later synchronization
+            // TODO: Validate the transaction cryptographically
+            // TODO: Update local balance tracking
+
+            Log.d(TAG, "Processed offline transaction successfully")
+            Log.d(TAG, "Amount: $amount, From: $senderName, Block: ${blockHash.take(20)}...")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processOfflineTransaction: ${e.message}", e)
+            throw e
+        }
+    }
+
+    /**
+     * Complete transaction and navigate to transaction history
+     */
+    private fun completeTransaction(senderName: String, amount: Long) {
+        Log.d(TAG, "=== COMPLETE TRANSACTION ===")
+
+        val displayName = if (senderName.isNotEmpty()) senderName else "Unknown"
+        Toast.makeText(
+            requireContext(),
+            "Payment of ${TransactionRepository.prettyAmount(amount)} received from $displayName!",
+            Toast.LENGTH_LONG
+        ).show()
+
+        Log.d(TAG, "Navigating to transaction history")
+
+        // Navigate to transaction history
+        try {
+            findNavController().navigate(R.id.action_receiveMoneyFragment_to_transactionsFragment)
+            Log.d(TAG, "Successfully navigated to transactions fragment")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to navigate: ${e.message}")
+        }
+    }
+
+    override fun onNFCReadError(error: String) {
+        super.onNFCReadError(error)
+        Log.e(TAG, "NFC Read Error: $error")
+        Toast.makeText(requireContext(), "Failed to receive payment: $error", Toast.LENGTH_LONG).show()
+    }
+
+    override fun onNFCTimeout() {
+        super.onNFCTimeout()
+        Log.w(TAG, "NFC operation timed out")
+        Toast.makeText(
+            requireContext(),
+            "Payment receive timed out. Please try again.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    override fun onNFCOperationCancelled() {
+        super.onNFCOperationCancelled()
+        Log.d(TAG, "NFC operation cancelled by user")
     }
 }
