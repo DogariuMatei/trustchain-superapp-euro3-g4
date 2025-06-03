@@ -147,7 +147,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         val ownKey = utxoService.trustChainCommunity.myPeer.publicKey
         val ownContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
-        binding.txtOwnPublicKey.text = ownKey.keyToBin().toHex()
+        binding.txtOwnPublicKey.text = ownKey.keyToBin().toHex().take(20) + "..."
         updateBalanceDisplay()
 
         if (ownContact?.name != null) {

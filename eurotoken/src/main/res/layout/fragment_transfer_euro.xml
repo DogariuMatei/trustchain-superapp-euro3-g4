@@ -40,8 +40,7 @@
             android:gravity="center"
             android:text="Loading..."
             android:textSize="12sp"
-            android:fontFamily="monospace"
-            android:maxLength="30" />
+            android:fontFamily="monospace"/>
 
         <!-- Missing Name Layout -->
         <LinearLayout

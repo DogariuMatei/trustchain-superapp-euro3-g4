@@ -32,24 +32,34 @@
         app:layout_constraintBaseline_toBaselineOf="@id/txtTxIndex" />
 
     <TextView
-        android:id="@+id/txtTxId"
+        android:id="@+id/txtOwner"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+        android:text="Owner: 1234abcd..."
         android:textSize="14sp"
-        android:typeface="monospace"
         android:ellipsize="middle"
         android:singleLine="true"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/txtTxIndex"
-        app:layout_constraintBottom_toTopOf="@+id/divider" />
+        app:layout_constraintTop_toBottomOf="@id/txtTxIndex"/>
+
+    <TextView
+        android:id="@+id/txtSpentStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Unspent"
+        android:textSize="14sp"
+        android:textStyle="italic"
+        android:textColor="?android:attr/textColorSecondary"
+        app:layout_constraintTop_toBottomOf="@id/txtOwner"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <View
         android:id="@+id/divider"
         android:layout_width="0dp"
         android:layout_height="1dp"
         android:background="?android:attr/listDivider"
+        app:layout_constraintTop_toBottomOf="@id/txtSpentStatus"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>

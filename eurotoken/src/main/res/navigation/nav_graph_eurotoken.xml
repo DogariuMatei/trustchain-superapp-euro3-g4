@@ -10,10 +10,19 @@
         android:label="Transaction History"
         tools:layout="@layout/fragment_transactions" />
     <fragment
+        android:id="@+id/utxosFragment"
+        android:name="nl.tudelft.trustchain.eurotoken.ui.utxos.UtxosFragment"
+        android:label="Utxos"
+        tools:layout="@layout/fragment_utxos" />
+    <fragment
         android:id="@+id/utxoTransactionsFragment"
         android:name="nl.tudelft.trustchain.eurotoken.ui.utxotransactions.UtxosTransactionsFragment"
         android:label="UTXO Transactions"
-        tools:layout="@layout/fragment_utxo_transactions" />
+        tools:layout="@layout/fragment_utxo_transactions">
+        <action
+            android:id="@+id/action_utxosTransactionsFragment_to_utxosFragment"
+            app:destination="@id/utxosFragment" />
+    </fragment>
     <fragment
         android:id="@+id/exchangeFragment"
         android:name="nl.tudelft.trustchain.eurotoken.ui.exchange.ExchangeFragment"

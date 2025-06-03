@@ -15,14 +15,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.mattskala.itemadapter.Item
 import com.mattskala.itemadapter.ItemAdapter
 import kotlinx.coroutines.delay
-import nl.tudelft.ipv8.util.toHex
+import nl.tudelft.trustchain.common.contacts.ContactStore
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.R
-import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxoTransactionsBinding
-import nl.tudelft.trustchain.eurotoken.ui.EurotokenBaseFragment
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentUtxosBinding
 import nl.tudelft.trustchain.common.eurotoken.UTXO
-import nl.tudelft.trustchain.common.eurotoken.UTXOService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 
 /**
@@ -46,15 +43,15 @@ class UtxosFragment : EurotokenNFCBaseFragment(R.layout.fragment_utxos) {
         adapter.registerRenderer(UtxoItemRenderer())
 
         lifecycleScope.launchWhenResumed {
+            val txId = arguments?.getString("transactionId")
             val items =
-                utxoService.getUtxosByOwner(utxoService.trustChainCommunity.myPeer.publicKey.keyToBin())
+                utxoService.getUtxosById(txId!!)
                     .map { utxo: UTXO -> UtxoItem(utxo) }
             Log.e("UtxosFragment", "Loaded ${items.size} UTXOs")
             adapter.updateItems(items)
             adapter.notifyDataSetChanged()
 
-            /*binding.txtBalance.text = UTXOService.prettyAmount(utxoService.getMyBalance())
-            binding.txtOwnPublicKey.text = utxoService.trustChainCommunity.myPeer.publicKey.keyToHash().toHex()*/
+            binding.txtTransactionId.text = txId
             delay(1000L)
         }
     }

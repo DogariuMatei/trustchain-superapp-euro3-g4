@@ -52,6 +52,11 @@ class UTXOService(
         return store.getUtxoTransactionsByParticipation(myPublicKey)
     }
 
+    fun getUtxosById(txId: String): List<UTXO> {
+        Log.e("UTXOService", "Got UTXOs for txId: $txId")
+        return store.getUtxosById(txId)
+    }
+
     fun getMyBalance(): Long {
         val myPublicKey = IPv8Android.getInstance().myPeer.publicKey.keyToBin()
         val available_utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
@@ -138,36 +143,6 @@ class UTXOService(
         }
     }
 
-    /*
-    * On receive: validate bloom, proofs, then apply state changes and checkpoint root
-    */
-    /*fun validateAndCommit(utxoTx: UTXOTransaction, peerPub: ByteArray): Boolean {
-        // quick reject
-        proposal.inputs.forEach { id ->
-            if (!bloom.mightContain(id.toBytes())) return false
-        }
-        // verify proofs
-        proposal.proofs.forEach { (id, proof) ->
-            if (!trieImpl.verifyProof(proposal.rootHash, id.toBytes(), proof)) return false
-        }
-        // apply removals and additions
-        proposal.inputs.forEach { removeUTXO(it) }
-        proposal.outputs.forEach { addUTXO(it) }
-        // commit via TrustChain block
-        val block = trustChainCommunity.createProposalBlock(
-            TransactionRepository.BLOCK_TYPE_TRANSFER,
-            mapOf(
-                "root" to proposal.rootHash.toHex(),
-                "inputs" to proposal.inputs.map { it.toBytes().toHex() },
-                "outputs" to proposal.outputs.map { it.id.toBytes().toHex() }
-            ),
-            peerPub
-        )
-        trustChainCommunity.sendBlock(block, trustChainCommunity.getPeer(peerPub)!!)
-        store.saveBlock(block)
-        return true
-    }*/
-
     companion object {
         fun prettyAmount(amount: Long): String {
             return "€" + (amount / 100).toString() + "," +
@@ -175,7 +150,6 @@ class UTXOService(
                     .padStart(2, '0')
         }
 
-        var genesisUtxoId: String? = null
         var GENESIS_UTXO_CREATED: Boolean = false
     }
 }

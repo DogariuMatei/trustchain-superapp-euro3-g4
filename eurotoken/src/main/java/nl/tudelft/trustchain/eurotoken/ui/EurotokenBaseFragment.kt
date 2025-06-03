@@ -27,7 +27,6 @@ import nl.tudelft.trustchain.common.eurotoken.GatewayStore
 import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOService
-import nl.tudelft.trustchain.common.eurotoken.UTXOService.Companion.genesisUtxoId
 import nl.tudelft.trustchain.common.ui.BaseFragment
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
@@ -153,20 +152,31 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
                 // Create a genesis UTXO for demo mode
                 val genesisUtxo = UTXO(
                     txId = "genesis_" +
-                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
+                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
                     txIndex = 0,
                     amount = 10000,
-                    owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
+                    owner = "_genesis_".toByteArray(),
                 )
 
                 utxoService.addUTXO(genesisUtxo)
 
+                val outputUTXO = UTXO(
+                    txId = "genesis_" +
+                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+                    txIndex = 1,
+                    amount = 10000,
+                    owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin()
+                )
+
+                Log.e("GENESIS", "Genesis txId: ${outputUTXO.txId}")
+
                 val genesisTransaction = UTXOTransaction(
                     "genesis_" +
-                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
-                    "genesis_".toByteArray(),
+                        utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+                    "_genesis_".toByteArray(),
                     utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
-                    listOf(genesisUtxo)
+                    listOf(genesisUtxo),
+                    listOf(outputUTXO)
                 )
                 utxoService.addUTXOTransaction(genesisTransaction)
                 UTXOService.GENESIS_UTXO_CREATED = true
