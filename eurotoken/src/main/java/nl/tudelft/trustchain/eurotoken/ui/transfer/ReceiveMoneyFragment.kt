@@ -249,6 +249,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         // Clear any lingering HCE data from Phase 1
         HCEPaymentService.clearPendingTransactionData()
         HCEPaymentService.clearOnDataReceivedCallback()
+        HCEPaymentService.clearOnDataTransmittedCallback()
 
         val myPeer = transactionRepository.trustChainCommunity.myPeer
         val receiverConfirmation = JSONObject()
@@ -274,10 +275,11 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 Log.d(TAG, "Receiver confirmation sent, switching to reader mode")
                 updateNFCDialogMessage("Waiting for payment...")
 
-                // Short delay then switch to reader mode for payment
+                // IMPORTANT: Longer delay to ensure sender has time to process confirmation
+                // and switch to card emulation mode
                 Handler(Looper.getMainLooper()).postDelayed({
                     switchToPaymentReceiveMode()
-                }, 500)
+                }, 3000) // Increased from 500ms to 3000ms
             }
         )
     }
@@ -288,16 +290,34 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
     private fun switchToPaymentReceiveMode() {
         Log.d(TAG, "=== SWITCH TO PAYMENT RECEIVE MODE ===")
 
-        // Clear any old HCE data before starting reader mode
+        // CRITICAL: Completely clean HCE state before starting reader mode
         HCEPaymentService.clearPendingTransactionData()
         HCEPaymentService.clearOnDataReceivedCallback()
+        HCEPaymentService.clearOnDataTransmittedCallback()
+
+        Log.d(TAG, "Starting reader mode to receive payment confirmation")
 
         startHCEReaderMode(
             message = "Receiving payment...",
-            timeoutSeconds = 60,
+            timeoutSeconds = 90, // Increased timeout for payment confirmation
             onDataReceived = { paymentData ->
-                Log.d(TAG, "Received payment confirmation: ${paymentData.take(100)}...")
-                Log.d(TAG, "Full payment data type check: ${JSONObject(paymentData).optString("type")}")
+                Log.d(TAG, "Received payment data: ${paymentData.take(100)}...")
+
+                // Log the data type to verify we're getting the right data
+                try {
+                    val jsonStart = paymentData.indexOf("\"type\":")
+                    if (jsonStart != -1) {
+                        val typeStart = paymentData.indexOf("\"", jsonStart + 7) + 1
+                        val typeEnd = paymentData.indexOf("\"", typeStart)
+                        if (typeEnd != -1) {
+                            val dataType = paymentData.substring(typeStart, typeEnd)
+                            Log.d(TAG, "Received data type: $dataType")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not parse data type: ${e.message}")
+                }
+
                 handlePaymentConfirmation(paymentData)
             }
         )

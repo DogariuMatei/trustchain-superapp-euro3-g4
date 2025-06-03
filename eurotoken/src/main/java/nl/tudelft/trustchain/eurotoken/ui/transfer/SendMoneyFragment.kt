@@ -1,3 +1,5 @@
+// Updated SendMoneyFragment.kt
+
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.util.Log
@@ -58,7 +60,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         binding.btnContinue.setOnClickListener {
             if (isPhase1Complete) {
-                Toast.makeText(requireContext(), "Phase 1 already complete. Phase 2 will start automatically.", Toast.LENGTH_SHORT).show()
+                startPhase2Payment()
             } else {
                 retryPhase1Transmission()
             }
@@ -103,6 +105,11 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     private fun startPhase1HCETransmission() {
         Log.d(TAG, "=== START PHASE 1 HCE TRANSMISSION ===")
 
+        // Ensure HCE service is completely clean before starting
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
+        HCEPaymentService.clearOnDataTransmittedCallback()
+
         // Start HCE service explicitly
         requireContext().startService(Intent(requireContext(), HCEPaymentService::class.java))
 
@@ -123,16 +130,13 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                     Log.d(TAG, "HCE card emulation ready - waiting for reader")
                 },
                 onDataTransmitted = {
-                    Log.d(TAG, "Sender info successfully transmitted!")
+                    Log.d(TAG, "Phase 1: Sender info successfully transmitted!")
                     isPhase1Complete = true
-
-                    // Store receiver's public key from the sender payload (we'll need this for Phase 2)
-                    // For now, we'll get it during Phase 2 NFC exchange
 
                     updateNFCDialogMessage("Payment details sent!")
                     Handler(Looper.getMainLooper()).postDelayed({
                         dismissNFCDialog()
-                        updateUIAfterPhase1()
+                        completePhase1AndPreparePhase2()
                     }, 1500)
                 }
             )
@@ -150,11 +154,24 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     }
 
     /**
+     * Complete Phase 1 and prepare for Phase 2
+     */
+    private fun completePhase1AndPreparePhase2() {
+        Log.d(TAG, "=== COMPLETE PHASE 1 AND PREPARE FOR PHASE 2 ===")
+
+        // IMPORTANT: Stop HCE card emulation and clear all data from Phase 1
+        getHCEHandler()?.stopHCECardEmulation()
+
+        updateUIAfterPhase1()
+    }
+
+    /**
      * Update UI after Phase 1 completion
      */
     private fun updateUIAfterPhase1() {
-        binding.txtSendData.text = "Payment details sent. Ready for Phase 2."
-        binding.btnContinue.text = "Continue to Send Payment"
+        binding.txtSendData.text = "Phase 1 Complete! Payment details sent successfully."
+        binding.btnContinue.text = "Send Payment (Phase 2)"
+        binding.btnContinue.isEnabled = true
         binding.btnContinue.setOnClickListener {
             if (isPhase1Complete) {
                 startPhase2Payment()
@@ -172,7 +189,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         Toast.makeText(
             requireContext(),
-            "Hold phones together to send payment",
+            "Hold phones together to receive confirmation",
             Toast.LENGTH_LONG
         ).show()
 
@@ -181,7 +198,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             message = "Connecting to receiver...",
             timeoutSeconds = 60,
             onDataReceived = { receiverData ->
-                Log.d(TAG, "Received receiver confirmation: ${receiverData.take(100)}...")
+                Log.d(TAG, "Phase 2: Received receiver confirmation: ${receiverData.take(100)}...")
                 handleReceiverConfirmation(receiverData)
             }
         )
@@ -209,7 +226,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 // Give receiver time to switch to reader mode before sending payment
                 Handler(Looper.getMainLooper()).postDelayed({
                     createAndSendTransaction()
-                }, 1000)
+                }, 2000) // Increased delay to ensure receiver is ready
             } else {
                 Toast.makeText(requireContext(), "Invalid receiver response", Toast.LENGTH_SHORT).show()
             }
@@ -233,10 +250,28 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         }
 
         try {
-            // Clear any old HCE data first
+            // CRITICAL: Ensure HCE service is completely clean before setting new data
+            Log.d(TAG, "Cleaning HCE service before sending payment confirmation")
             HCEPaymentService.clearPendingTransactionData()
             HCEPaymentService.clearOnDataReceivedCallback()
+            HCEPaymentService.clearOnDataTransmittedCallback()
 
+            // Add a small delay to ensure cleanup is complete
+            Handler(Looper.getMainLooper()).postDelayed({
+                sendPaymentConfirmation(receiverKey)
+            }, 300)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in createAndSendTransaction: ${e.message}", e)
+            Toast.makeText(requireContext(), "Transaction failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * Send payment confirmation after cleanup
+     */
+    private fun sendPaymentConfirmation(receiverKey: String) {
+        try {
             // Create actual blockchain transaction
             val transactionBlock = transactionRepository.sendTransferProposalSync(
                 receiverKey.hexToBytes(),
@@ -263,17 +298,19 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             paymentConfirmation.put("sequence_number", transactionBlock.sequenceNumber)
             paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)
 
+            val paymentData = paymentConfirmation.toString()
             Log.d(TAG, "Created transaction block, sending payment confirmation")
-            Log.d(TAG, "Payment confirmation data: ${paymentConfirmation.toString().take(100)}...")
+            Log.d(TAG, "Payment confirmation data length: ${paymentData.length}")
+            Log.d(TAG, "Payment confirmation preview: ${paymentData.take(150)}...")
 
             // Send payment confirmation via HCE card emulation
             startHCECardEmulation(
-                jsonData = paymentConfirmation.toString(),
+                jsonData = paymentData,
                 message = "Sending payment confirmation...",
                 timeoutSeconds = 30,
                 expectResponse = false,
                 onDataTransmitted = {
-                    Log.d(TAG, "Payment confirmation sent successfully")
+                    Log.d(TAG, "Phase 2: Payment confirmation sent successfully")
                     updateNFCDialogMessage("Payment sent successfully!")
 
                     Handler(Looper.getMainLooper()).postDelayed({
@@ -284,7 +321,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error in createAndSendTransaction: ${e.message}", e)
+            Log.e(TAG, "Error in sendPaymentConfirmation: ${e.message}", e)
             Toast.makeText(requireContext(), "Transaction failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
@@ -294,6 +331,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
      */
     private fun completeTransaction() {
         Log.d(TAG, "=== COMPLETE TRANSACTION ===")
+
+        // Final cleanup
+        getHCEHandler()?.stopHCECardEmulation()
 
         Toast.makeText(
             requireContext(),
@@ -317,10 +357,22 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
      */
     private fun retryPhase1Transmission() {
         Log.d(TAG, "Retrying Phase 1 transmission")
+
+        // Reset state
         isPhase1Complete = false
         receiverPublicKey = null
+
+        // Complete cleanup
+        getHCEHandler()?.stopHCECardEmulation()
+
+        // Reset UI
         binding.btnContinue.text = "Retry Send"
-        startPhase1HCETransmission()
+        binding.btnContinue.isEnabled = true
+
+        // Restart Phase 1 after cleanup
+        Handler(Looper.getMainLooper()).postDelayed({
+            startPhase1HCETransmission()
+        }, 500)
     }
 
     /**
@@ -329,7 +381,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     override fun onNFCReadError(error: String) {
         Log.e(TAG, "NFC Error: $error")
         Toast.makeText(requireContext(), "NFC Error: $error", Toast.LENGTH_SHORT).show()
-        retryPhase1Transmission()
+
+        // Reset and allow retry
+        binding.btnContinue.isEnabled = true
     }
 
     override fun onNFCTimeout() {
@@ -340,12 +394,29 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             "Send timed out. Make sure the receiver has NFC activated and try again.",
             Toast.LENGTH_LONG
         ).show()
-        retryPhase1Transmission()
+
+        // Reset and allow retry
+        binding.btnContinue.isEnabled = true
     }
 
     override fun onNFCOperationCancelled() {
         super.onNFCOperationCancelled()
         Log.d(TAG, "NFC operation cancelled")
-        retryPhase1Transmission()
+
+        // Reset and allow retry
+        binding.btnContinue.isEnabled = true
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Ensure complete cleanup when fragment is destroyed
+        getHCEHandler()?.stopHCECardEmulation()
+    }
+
+    /**
+     * Get HCE handler from activity
+     */
+    override fun getHCEHandler(): EurotokenNFCBaseFragment.HCETransactionHandler? {
+        return requireActivity() as? EurotokenNFCBaseFragment.HCETransactionHandler
     }
 }
