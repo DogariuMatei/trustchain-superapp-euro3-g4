@@ -9,6 +9,7 @@ class UTXO {
     private val receivedTokenIds: MutableList<String> = mutableListOf()
     private val sentTokenIds: MutableList<String> = mutableListOf()
     private val bloomFilter: CustomBloomFilter = CustomBloomFilter()
+    private var waitingFilter: CustomBloomFilter? = null
 
     companion object {
         private const val TOKEN_VALUE = 1
@@ -64,6 +65,20 @@ class UTXO {
         val receivedFilter = CustomBloomFilter()
         receivedFilter.loadFromByteArray(filterBytes)
         bloomFilter.mergeFrom(receivedFilter)
+    }
+
+    fun holdFilter(filterBytes: ByteArray) {
+        releaseFilter()
+        val receivedFilter = CustomBloomFilter()
+        receivedFilter.loadFromByteArray(filterBytes)
+        waitingFilter = receivedFilter
+    }
+
+    fun releaseFilter() {
+        waitingFilter?.let {
+            bloomFilter.mergeFrom(it)
+            waitingFilter = null
+        }
     }
 
     private fun generateTokenId(): String {

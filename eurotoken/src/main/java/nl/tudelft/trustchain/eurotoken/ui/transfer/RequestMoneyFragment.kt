@@ -11,9 +11,13 @@ import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.navigation.fragment.findNavController
+import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
+import nl.tudelft.ipv8.util.hexToBytes
+import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentRequestMoneyBinding
+import nl.tudelft.trustchain.eurotoken.db.UTXOWallet
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 
@@ -27,6 +31,15 @@ class RequestMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_request_
     }
 
     private val binding by viewBinding(FragmentRequestMoneyBinding::bind)
+
+    private val ownPublicKey by lazy {
+        defaultCryptoProvider.keyFromPublicBin(
+            transactionRepository.trustChainCommunity.myPeer.publicKey.keyToBin().toHex()
+                .hexToBytes()
+        )
+    }
+
+    private val myUTXO = UTXOWallet.getInstance().getOrCreateUTXO(ownPublicKey.toString())
 
     private var paymentRequestData: String? = null
     private var isPhase1Complete = false

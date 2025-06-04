@@ -27,9 +27,12 @@ import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentTransferEuroBinding
+import nl.tudelft.trustchain.eurotoken.db.UTXOWallet
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONException
 import org.json.JSONObject
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -102,6 +105,8 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     private val binding by viewBinding(FragmentTransferEuroBinding::bind)
+    private val myUTXO = UTXOWallet.getInstance().getOrCreateUTXO(
+        transactionRepository.trustChainCommunity.myPeer.publicKey.toString())
 
     // Track which phase we're in
     private enum class TransactionPhase {
@@ -230,6 +235,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Initiate a payment request - Phase 1 of the HCE transaction
      */
+    @OptIn(ExperimentalEncodingApi::class)
     private fun initiatePaymentRequest(amount: Long) {
         Log.d(TAG, "=== INITIATE PAYMENT REQUEST ===")
 
@@ -243,6 +249,11 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         paymentRequest.put("amount", amount)
         paymentRequest.put("requester_name", contact?.name ?: "")
         paymentRequest.put("timestamp", System.currentTimeMillis())
+
+        // Prepare filter
+        val filterBytes = myUTXO.sendFilter()
+        val encodedFilter = Base64.encode(filterBytes)
+        paymentRequest.put("filter", encodedFilter)
 
         Log.d(TAG, "Payment request created: ${paymentRequest.toString(2)}")
 
@@ -277,6 +288,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Handle Phase 2 - Payment Confirmation received from Sender
      */
+    @OptIn(ExperimentalEncodingApi::class)
     private fun handlePhase2PaymentConfirmation(paymentConfirmation: JSONObject) {
         Log.d(TAG, "=== HANDLE PHASE 2 PAYMENT CONFIRMATION ===")
 
@@ -289,11 +301,33 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             val sequenceNumber = paymentConfirmation.optLong("sequence_number", -1L)
             val blockTimestamp = paymentConfirmation.optLong("block_timestamp", -1L)
 
+            // Receive tokens and filter
+            val senderTokensBase64 = paymentConfirmation.optString("tokens")
+            val senderFilterBase64 = paymentConfirmation.optString("filter")
+            val senderTokens: ByteArray = Base64.decode(senderTokensBase64)
+            val senderFilter: ByteArray = Base64.decode(senderFilterBase64)
+
             Log.d(TAG, "Payment confirmation - Amount: $amount, From: ${senderPublicKey.take(20)}..., Name: $senderName")
             Log.d(TAG, "Block hash: ${blockHash.take(20)}..., Sequence: $sequenceNumber")
 
             // Validate required data
             if (senderPublicKey.isEmpty() || amount <= 0 || blockHash.isEmpty() || sequenceNumber < 0) {
+                Log.e(TAG, "Invalid transaction data")
+                Toast.makeText(requireContext(), "Invalid transaction data received", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            // Validate sender tokens & merge filter
+            if (senderTokens.isNotEmpty() && senderFilter.isNotEmpty()) {
+                try {
+                    myUTXO.receiveTokens(senderTokens)
+                    myUTXO.receiveFilter(senderFilter)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Fraud Detected")
+                    Toast.makeText(requireContext(), "Fraud Detected: Double Spending", Toast.LENGTH_LONG).show()
+                    return
+                }
+            } else {
                 Log.e(TAG, "Invalid transaction data")
                 Toast.makeText(requireContext(), "Invalid transaction data received", Toast.LENGTH_LONG).show()
                 return
@@ -359,6 +393,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Handle Phase 1 - Payment Request received from Requester
      */
+    @OptIn(ExperimentalEncodingApi::class)
     private fun handlePhase1PaymentRequest(paymentRequest: JSONObject) {
         Log.d(TAG, "=== HANDLE PHASE 1 PAYMENT REQUEST ===")
 
@@ -366,13 +401,20 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
         val publicKey = paymentRequest.optString("public_key")
         val requesterName = paymentRequest.optString("requester_name")
 
+        // Receive filter
+        val filterBase64 = paymentRequest.optString("filter")
+        val filter: ByteArray = Base64.decode(filterBase64)
+
         Log.d(TAG, "Payment request - Amount: $amount, From: ${publicKey.take(20)}..., Name: $requesterName")
 
-        if (amount <= 0 || publicKey.isEmpty()) {
+        if (amount <= 0 || publicKey.isEmpty() || filter.isEmpty()) {
             Log.e(TAG, "Invalid payment request data")
             Toast.makeText(requireContext(), "Invalid payment request data", Toast.LENGTH_LONG).show()
             return
         }
+
+        // Hold filter for later
+        myUTXO.holdFilter(filter)
 
         deactivateNFCReceive()
 

@@ -21,9 +21,12 @@ import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import nl.tudelft.trustchain.eurotoken.R
 import nl.tudelft.trustchain.eurotoken.databinding.FragmentSendMoneyBinding
+import nl.tudelft.trustchain.eurotoken.db.UTXOWallet
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money) {
@@ -57,6 +60,8 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 .hexToBytes()
         )
     }
+
+    private val myUTXO = UTXOWallet.getInstance().getOrCreateUTXO(ownPublicKey.toString())
 
     // Locally store transaction parameters for Phase 2 execution
     private lateinit var transactionParams: TransactionParams
@@ -240,6 +245,17 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             return
         }
 
+        // Check if sufficient tokens
+        if (myUTXO.numTokensAvailable() < transactionParams.amount) {
+            Log.w(TAG, "Insufficient tokens")
+            Toast.makeText(
+                requireContext(),
+                "Insufficient tokens",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         // Create Phase 2 data and initiate HCE transaction
         prepareAndSendPhase2Data()
     }
@@ -247,6 +263,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     /**
      * Create actual transaction and send via HCE - Phase 2
      */
+    @OptIn(ExperimentalEncodingApi::class)
     private fun prepareAndSendPhase2Data() {
         Log.d(TAG, "=== PREPARE AND SEND PHASE 2 DATA ===")
 
@@ -288,6 +305,12 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             paymentConfirmation.put("block_hash", transactionBlock.calculateHash().toHex())
             paymentConfirmation.put("sequence_number", transactionBlock.sequenceNumber)
             paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)
+
+            // Prepare filter and tokens
+            val filterBytes = myUTXO.sendFilter()
+            val tokensBytes = myUTXO.sendTokens(transactionParams.amount.toInt())
+            paymentConfirmation.put("filter", Base64.encode(filterBytes))
+            paymentConfirmation.put("tokens", Base64.encode(tokensBytes))
 
             Log.d(TAG, "Payment confirmation created: ${paymentConfirmation.toString(2)}")
 
