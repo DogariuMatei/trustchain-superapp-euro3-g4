@@ -18,6 +18,7 @@ import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity.EurotokenPreference
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME
 import nl.tudelft.trustchain.eurotoken.db.TrustStore
 import nl.tudelft.trustchain.eurotoken.ui.settings.DefaultGateway
+import nl.tudelft.trustchain.eurotoken.sync.BloomFilterUtil
 
 class EuroTokenCommunity(
     store: GatewayStore,
@@ -41,6 +42,11 @@ class EuroTokenCommunity(
     init {
         messageHandlers[MessageId.ROLLBACK_REQUEST] = ::onRollbackRequestPacket
         messageHandlers[MessageId.ATTACHMENT] = ::onLastAddressPacket
+        messageHandlers[MessageId.BLOOM_FILTER] = ::onBloomFilterPacket
+        messageHandlers[MessageId.MISSING_KEYS] = ::onMissingKeysPacket
+
+
+
         if (store.getPreferred().isEmpty()) {
             DefaultGateway.addGateway(store)
         }
@@ -125,8 +131,10 @@ class EuroTokenCommunity(
 
     object MessageId {
         const val GATEWAY_CONNECT = 1
-        const val ROLLBACK_REQUEST = 1
-        const val ATTACHMENT = 4
+        const val ROLLBACK_REQUEST = 2
+        const val ATTACHMENT       = 3
+        const val BLOOM_FILTER     = 5
+        const val MISSING_KEYS     = 6
     }
 
     class Factory(
@@ -138,6 +146,7 @@ class EuroTokenCommunity(
             return EuroTokenCommunity(store, trustStore, context)
         }
     }
+
 
     /**
      * Generate a public key based on the [seed].
@@ -163,10 +172,54 @@ class EuroTokenCommunity(
     ): List<String> {
         val publicKeys = mutableListOf<String>()
         for (i in 0 until numberOfKeys) {
-            publicKeys.add(generatePublicKey(seed + i))
+            publicKeys.add(generatePublicKey(seed + i.toLong()))
         }
         return publicKeys
     }
+
+
+    fun sendBloomFilter(peer: Peer) {
+           val keys = myTrustStore.getAllScores().map { it.pubKey }    // TrustStore helper
+           val bytes = BloomFilterUtil.toBytes(BloomFilterUtil.create(keys))
+           val payload = BloomFilterPayload(bytes)
+           val packet  = serializePacket(MessageId.BLOOM_FILTER, payload, encrypt = true, recipient = peer)
+           send(peer, packet)
+        }
+    
+    private fun onBloomFilterPacket(packet: Packet) {
+           val (peer, payload) = packet.getDecryptedAuthPayload(
+                   BloomFilterPayload.Deserializer,
+                   myPeer.key as PrivateKey
+                       )
+        
+           val remoteFilter = BloomFilterUtil.fromBytes(payload.filter)
+        val missing = myTrustStore.getAllScores()
+               .filterNot { remoteFilter.mightContain(it.pubKey) }
+               .joinToString(",") { it.pubKey.toHex() }
+
+        
+           if (missing.isNotEmpty()) {
+                   val response = MissingKeysPayload(missing.toByteArray())
+                   val out = serializePacket(MessageId.MISSING_KEYS, response, encrypt = true, recipient = peer)
+                   send(peer, out)
+               }
+        }
+    
+    private fun onMissingKeysPacket(packet: Packet) {
+           val (_, payload) = packet.getDecryptedAuthPayload(
+                   MissingKeysPayload.Deserializer,
+                   myPeer.key as PrivateKey
+                       )
+        
+           payload.keysCsv.toString(Charsets.UTF_8)
+               .split(',')
+               .filter { it.isNotBlank() }
+               .forEach { myTrustStore.incrementTrust(it.hexToBytes()) }
+        }
+    
+    
+    
+    
 
     /**
      * Called after the user has finished a transaction with the other party.

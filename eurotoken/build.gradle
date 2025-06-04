@@ -93,4 +93,6 @@ dependencies {
     implementation 'androidx.sqlite:sqlite:2.4.0'
     implementation "app.cash.sqldelight:android-driver:$sqldelight_version"
 
+    implementation "com.google.guava:guava:33.0.0-android"
+
 }
