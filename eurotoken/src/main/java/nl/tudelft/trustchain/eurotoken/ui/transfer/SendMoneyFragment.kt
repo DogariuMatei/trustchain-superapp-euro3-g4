@@ -25,8 +25,8 @@ import nl.tudelft.trustchain.eurotoken.db.UTXOWallet
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
-import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
+import android.util.Base64
+import nl.tudelft.trustchain.eurotoken.entity.UTXO
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money) {
@@ -61,7 +61,10 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         )
     }
 
-    private val myUTXO = UTXOWallet.getInstance().getOrCreateUTXO(ownPublicKey.toString())
+    val myUTXO: UTXO by lazy {
+        val publicKeyString = transactionRepository.trustChainCommunity.myPeer.publicKey.toString()
+        UTXOWallet.getInstance().getOrCreateUTXO(publicKeyString)
+    }
 
     // Locally store transaction parameters for Phase 2 execution
     private lateinit var transactionParams: TransactionParams
@@ -263,7 +266,6 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     /**
      * Create actual transaction and send via HCE - Phase 2
      */
-    @OptIn(ExperimentalEncodingApi::class)
     private fun prepareAndSendPhase2Data() {
         Log.d(TAG, "=== PREPARE AND SEND PHASE 2 DATA ===")
 
@@ -309,8 +311,8 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             // Prepare filter and tokens
             val filterBytes = myUTXO.sendFilter()
             val tokensBytes = myUTXO.sendTokens(transactionParams.amount.toInt())
-            paymentConfirmation.put("filter", Base64.encode(filterBytes))
-            paymentConfirmation.put("tokens", Base64.encode(tokensBytes))
+            paymentConfirmation.put("filter", Base64.encodeToString(filterBytes, Base64.NO_WRAP))
+            paymentConfirmation.put("tokens", Base64.encodeToString(tokensBytes, Base64.NO_WRAP))
 
             Log.d(TAG, "Payment confirmation created: ${paymentConfirmation.toString(2)}")
 

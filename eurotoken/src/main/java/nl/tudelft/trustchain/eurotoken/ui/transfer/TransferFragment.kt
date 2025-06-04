@@ -31,8 +31,8 @@ import nl.tudelft.trustchain.eurotoken.db.UTXOWallet
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONException
 import org.json.JSONObject
-import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
+import android.util.Base64
+import nl.tudelft.trustchain.eurotoken.entity.UTXO
 
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -105,8 +105,10 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     }
 
     private val binding by viewBinding(FragmentTransferEuroBinding::bind)
-    private val myUTXO = UTXOWallet.getInstance().getOrCreateUTXO(
-        transactionRepository.trustChainCommunity.myPeer.publicKey.toString())
+    val myUTXO: UTXO by lazy {
+        val publicKeyString = transactionRepository.trustChainCommunity.myPeer.publicKey.toString()
+        UTXOWallet.getInstance().getOrCreateUTXO(publicKeyString)
+    }
 
     // Track which phase we're in
     private enum class TransactionPhase {
@@ -235,7 +237,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Initiate a payment request - Phase 1 of the HCE transaction
      */
-    @OptIn(ExperimentalEncodingApi::class)
     private fun initiatePaymentRequest(amount: Long) {
         Log.d(TAG, "=== INITIATE PAYMENT REQUEST ===")
 
@@ -252,7 +253,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
 
         // Prepare filter
         val filterBytes = myUTXO.sendFilter()
-        val encodedFilter = Base64.encode(filterBytes)
+        val encodedFilter = Base64.encodeToString(filterBytes, Base64.NO_WRAP)
         paymentRequest.put("filter", encodedFilter)
 
         Log.d(TAG, "Payment request created: ${paymentRequest.toString(2)}")
@@ -288,7 +289,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Handle Phase 2 - Payment Confirmation received from Sender
      */
-    @OptIn(ExperimentalEncodingApi::class)
     private fun handlePhase2PaymentConfirmation(paymentConfirmation: JSONObject) {
         Log.d(TAG, "=== HANDLE PHASE 2 PAYMENT CONFIRMATION ===")
 
@@ -304,8 +304,8 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
             // Receive tokens and filter
             val senderTokensBase64 = paymentConfirmation.optString("tokens")
             val senderFilterBase64 = paymentConfirmation.optString("filter")
-            val senderTokens: ByteArray = Base64.decode(senderTokensBase64)
-            val senderFilter: ByteArray = Base64.decode(senderFilterBase64)
+            val senderTokens: ByteArray = Base64.decode(senderTokensBase64, Base64.DEFAULT)
+            val senderFilter: ByteArray = Base64.decode(senderFilterBase64, Base64.DEFAULT)
 
             Log.d(TAG, "Payment confirmation - Amount: $amount, From: ${senderPublicKey.take(20)}..., Name: $senderName")
             Log.d(TAG, "Block hash: ${blockHash.take(20)}..., Sequence: $sequenceNumber")
@@ -393,7 +393,6 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
     /**
      * Handle Phase 1 - Payment Request received from Requester
      */
-    @OptIn(ExperimentalEncodingApi::class)
     private fun handlePhase1PaymentRequest(paymentRequest: JSONObject) {
         Log.d(TAG, "=== HANDLE PHASE 1 PAYMENT REQUEST ===")
 
@@ -403,7 +402,7 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
 
         // Receive filter
         val filterBase64 = paymentRequest.optString("filter")
-        val filter: ByteArray = Base64.decode(filterBase64)
+        val filter: ByteArray = Base64.decode(filterBase64, Base64.DEFAULT)
 
         Log.d(TAG, "Payment request - Amount: $amount, From: ${publicKey.take(20)}..., Name: $requesterName")
 
