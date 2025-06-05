@@ -21,7 +21,10 @@ class UTXOService(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    // TODO store the bloom filter in the database
     private var bloom = BloomFilter(expectedUTXOs, falsePositiveRate)
+    val bloomFilter: BloomFilter
+        get() = bloom
 
     /*
     * Add a new UTXO to local state and update commitments
@@ -154,7 +157,42 @@ class UTXOService(
         return false
     }
 
+    fun createGenesisUTXO(): Boolean {
+        val genesisUtxo = UTXO(
+            txId = "genesis_" +
+                trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            txIndex = 0,
+            amount = GENESIS_AMOUNT,
+            owner = "_genesis_".toByteArray(),
+        )
+
+        addUTXO(genesisUtxo)
+
+        val outputUTXO = UTXO(
+            txId = "genesis_" +
+                trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            txIndex = 1,
+            amount = GENESIS_AMOUNT,
+            owner = trustChainCommunity.myPeer.publicKey.keyToBin()
+        )
+
+        Log.e("GENESIS", "Genesis txId: ${outputUTXO.txId}")
+
+        val genesisTransaction = UTXOTransaction(
+            "genesis_" +
+                trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            "_genesis_".toByteArray(),
+            trustChainCommunity.myPeer.publicKey.keyToBin(),
+            listOf(genesisUtxo),
+            listOf(outputUTXO)
+        )
+        val success = addUTXOTransaction(genesisTransaction)
+        return success
+    }
+
     companion object {
+        const val GENESIS_AMOUNT = 10000
+
         fun prettyAmount(amount: Long): String {
             return "€" + (amount / 100).toString() + "," +
                 (abs(amount) % 100).toString()

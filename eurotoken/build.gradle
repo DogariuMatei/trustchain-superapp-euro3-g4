@@ -76,6 +76,7 @@ dependencies {
 
     // Testing
     testImplementation "junit:junit:$junit_version"
+    testImplementation "app.cash.sqldelight:sqlite-driver:$sqldelight_version"
     androidTestImplementation "androidx.test.ext:junit:$android_junit_version"
 
     // Transitive dependencies

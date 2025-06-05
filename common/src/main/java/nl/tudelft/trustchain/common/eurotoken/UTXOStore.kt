@@ -1,6 +1,7 @@
 package nl.tudelft.trustchain.common.eurotoken
 
 import android.content.Context
+import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import nl.tudelft.common.sqldelight.Database
 import nl.tudelft.ipv8.util.toHex
@@ -119,6 +120,10 @@ open class UTXOStore(val database: Database) {
     }
 }
 
-class SqlUtxoStore(context: Context) : UTXOStore(
-    Database(AndroidSqliteDriver(Database.Schema, context, "common.db"))
-)
+class SqlUtxoStore(driver: SqlDriver) : UTXOStore(
+    Database(driver)
+) {
+    constructor(context: Context) : this(
+        AndroidSqliteDriver(Database.Schema, context, "common.db")
+    )
+}

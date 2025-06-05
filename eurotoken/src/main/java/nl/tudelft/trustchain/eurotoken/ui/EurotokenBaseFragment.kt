@@ -148,35 +148,7 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
     }
 
     private fun createGenesisUTXO() {
-        val genesisUtxo = UTXO(
-            txId = "genesis_" +
-                utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
-            txIndex = 0,
-            amount = 10000,
-            owner = "_genesis_".toByteArray(),
-        )
-
-        utxoService.addUTXO(genesisUtxo)
-
-        val outputUTXO = UTXO(
-            txId = "genesis_" +
-                utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
-            txIndex = 1,
-            amount = 10000,
-            owner = utxoService.trustChainCommunity.myPeer.publicKey.keyToBin()
-        )
-
-        Log.e("GENESIS", "Genesis txId: ${outputUTXO.txId}")
-
-        val genesisTransaction = UTXOTransaction(
-            "genesis_" +
-                utxoService.trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
-            "_genesis_".toByteArray(),
-            utxoService.trustChainCommunity.myPeer.publicKey.keyToBin(),
-            listOf(genesisUtxo),
-            listOf(outputUTXO)
-        )
-        val success = utxoService.addUTXOTransaction(genesisTransaction)
+        val success = utxoService.createGenesisUTXO()
         if(!success) {
             Log.e("GENESIS", "Failed to add genesis transaction")
             Toast.makeText(requireContext(), "Failed to add genesis transaction", Toast.LENGTH_LONG).show()
