@@ -1,3 +1,5 @@
+// Updated HCEPaymentService.kt
+
 package nl.tudelft.trustchain.eurotoken.nfc
 
 import android.content.Intent
@@ -32,37 +34,61 @@ class HCEPaymentService : HostApduService() {
         private var onDataReceivedCallback: ((String) -> Unit)? = null
         private var onDataTransmittedCallback: (() -> Unit)? = null
 
+        // Add data version tracking to help debug stale data issues
+        private var dataVersion: Long = 0
+
         fun hasPendingData(): Boolean {
             return pendingTransactionData != null
         }
 
         fun setOnDataTransmittedCallback(callback: () -> Unit) {
-            Log.d(TAG, "Setting data transmitted callback")
+            Log.d(TAG, "Setting data transmitted callback (version: $dataVersion)")
             onDataTransmittedCallback = callback
         }
 
         fun clearOnDataTransmittedCallback() {
-            Log.d(TAG, "Clearing data transmitted callback")
+            Log.d(TAG, "Clearing data transmitted callback (version: $dataVersion)")
             onDataTransmittedCallback = null
         }
 
         fun setPendingTransactionData(data: String) {
-            Log.d(TAG, "Setting pending transaction data: ${data.take(100)}...")
+            dataVersion++
+            Log.d(TAG, "Setting pending transaction data (version: $dataVersion)")
+            Log.d(TAG, "Data length: ${data.length} chars")
+            Log.d(TAG, "Data preview: ${data.take(150)}...")
+
+            // Log the data type for debugging
+            try {
+                val jsonStart = data.indexOf("\"type\":")
+                if (jsonStart != -1) {
+                    val typeStart = data.indexOf("\"", jsonStart + 7) + 1
+                    val typeEnd = data.indexOf("\"", typeStart)
+                    if (typeEnd != -1) {
+                        val dataType = data.substring(typeStart, typeEnd)
+                        Log.d(TAG, "Setting data with type: $dataType")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not parse data type: ${e.message}")
+            }
+
             pendingTransactionData = data
         }
 
         fun clearPendingTransactionData() {
-            Log.d(TAG, "Clearing pending transaction data")
+            val previousVersion = dataVersion
+            dataVersion++
+            Log.d(TAG, "Clearing pending transaction data (was version: $previousVersion, now: $dataVersion)")
             pendingTransactionData = null
         }
 
         fun setOnDataReceivedCallback(callback: (String) -> Unit) {
-            Log.d(TAG, "Setting data received callback")
+            Log.d(TAG, "Setting data received callback (version: $dataVersion)")
             onDataReceivedCallback = callback
         }
 
         fun clearOnDataReceivedCallback() {
-            Log.d(TAG, "Clearing data received callback")
+            Log.d(TAG, "Clearing data received callback (version: $dataVersion)")
             onDataReceivedCallback = null
         }
 
@@ -109,7 +135,7 @@ class HCEPaymentService : HostApduService() {
     }
 
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
-        Log.d(TAG, "=== PROCESS COMMAND APDU START ===")
+        Log.d(TAG, "=== PROCESS COMMAND APDU START (data version: $dataVersion) ===")
 
         if (commandApdu == null || commandApdu.size < 4) {
             Log.e(TAG, "Invalid APDU received: null or too short")
@@ -174,13 +200,14 @@ class HCEPaymentService : HostApduService() {
     }
 
     private fun handleSelectAid(): ByteArray {
-        Log.d(TAG, "=== HANDLE SELECT AID ===")
+        Log.d(TAG, "=== HANDLE SELECT AID (data version: $dataVersion) ===")
         Log.d(TAG, "Application selected successfully")
+        Log.d(TAG, "Current pending data: ${pendingTransactionData?.let { "Available (${it.length} chars)" } ?: "None"}")
         return STATUS_SUCCESS
     }
 
     private fun handleGetData(): ByteArray {
-        Log.d(TAG, "=== HANDLE GET DATA ===")
+        Log.d(TAG, "=== HANDLE GET DATA (data version: $dataVersion) ===")
 
         val data = pendingTransactionData
         if (data == null) {
@@ -188,8 +215,23 @@ class HCEPaymentService : HostApduService() {
             return STATUS_NOT_FOUND
         }
 
-        Log.d(TAG, "Sending transaction data: ${data.take(100)}...")
+        Log.d(TAG, "Sending transaction data: ${data.take(150)}...")
         Log.d(TAG, "Data length: ${data.length} chars")
+
+        // Log the data type being sent
+        try {
+            val jsonStart = data.indexOf("\"type\":")
+            if (jsonStart != -1) {
+                val typeStart = data.indexOf("\"", jsonStart + 7) + 1
+                val typeEnd = data.indexOf("\"", typeStart)
+                if (typeEnd != -1) {
+                    val dataType = data.substring(typeStart, typeEnd)
+                    Log.d(TAG, "Sending data with type: $dataType")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not parse data type: ${e.message}")
+        }
 
         // Convert string to bytes and append status
         val dataBytes = data.toByteArray(StandardCharsets.UTF_8)
@@ -200,6 +242,8 @@ class HCEPaymentService : HostApduService() {
         if (callback != null) {
             Log.d(TAG, "Invoking data transmitted callback")
             callback()
+        } else {
+            Log.d(TAG, "No data transmitted callback set")
         }
 
         Log.d(TAG, "Response length: ${response.size} bytes")
@@ -209,7 +253,7 @@ class HCEPaymentService : HostApduService() {
     }
 
     private fun handlePutData(apdu: ByteArray): ByteArray {
-        Log.d(TAG, "=== HANDLE PUT DATA ===")
+        Log.d(TAG, "=== HANDLE PUT DATA (data version: $dataVersion) ===")
 
         if (apdu.size < 5) {
             Log.e(TAG, "PUT DATA APDU too short")
@@ -228,8 +272,23 @@ class HCEPaymentService : HostApduService() {
         val dataBytes = apdu.sliceArray(5 until 5 + lc)
         val data = String(dataBytes, StandardCharsets.UTF_8)
 
-        Log.d(TAG, "Received data: ${data.take(100)}...")
+        Log.d(TAG, "Received data: ${data.take(150)}...")
         Log.d(TAG, "Data length: ${data.length} chars")
+
+        // Log the data type being received
+        try {
+            val jsonStart = data.indexOf("\"type\":")
+            if (jsonStart != -1) {
+                val typeStart = data.indexOf("\"", jsonStart + 7) + 1
+                val typeEnd = data.indexOf("\"", typeStart)
+                if (typeEnd != -1) {
+                    val dataType = data.substring(typeStart, typeEnd)
+                    Log.d(TAG, "Received data with type: $dataType")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not parse data type: ${e.message}")
+        }
 
         // Notify callback if set
         val callback = onDataReceivedCallback
@@ -245,8 +304,9 @@ class HCEPaymentService : HostApduService() {
     }
 
     override fun onDeactivated(reason: Int) {
-        Log.d(TAG, "=== HCE DEACTIVATED ===")
+        Log.d(TAG, "=== HCE DEACTIVATED (data version: $dataVersion) ===")
         Log.d(TAG, "Deactivation reason: ${getDeactivationReasonString(reason)}")
+        Log.d(TAG, "Pending data at deactivation: ${pendingTransactionData?.let { "Available (${it.length} chars)" } ?: "None"}")
     }
 
     private fun getDeactivationReasonString(reason: Int): String {

@@ -265,7 +265,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     /**
      * Get HCE handler from activity
      */
-    private fun getHCEHandler(): HCETransactionHandler? {
+    protected open fun getHCEHandler(): HCETransactionHandler? {
         return requireActivity() as? HCETransactionHandler
     }
 

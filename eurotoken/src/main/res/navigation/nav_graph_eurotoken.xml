@@ -46,8 +46,8 @@
             android:id="@+id/action_transferFragment_to_sendMoneyFragment"
             app:destination="@id/sendMoneyFragment" />
         <action
-            android:id="@+id/action_transferFragment_to_requestMoneyFragment"
-            app:destination="@id/requestMoneyFragment" />
+            android:id="@+id/action_transferFragment_to_receiveMoneyFragment"
+            app:destination="@id/receiveMoneyFragment" />
     </fragment>
     <fragment
         android:id="@+id/sendMoneyFragment"
@@ -65,11 +65,11 @@
             app:argType="string" />
     </fragment>
     <fragment
-        android:id="@+id/requestMoneyFragment"
-        android:name="nl.tudelft.trustchain.eurotoken.ui.transfer.RequestMoneyFragment"
-        android:label="Request Money">
+        android:id="@+id/receiveMoneyFragment"
+        android:name="nl.tudelft.trustchain.eurotoken.ui.transfer.ReceiveMoneyFragment"
+        android:label="Receive Money">
         <action
-            android:id="@+id/action_requestMoneyFragment_to_transactionsFragment"
+            android:id="@+id/action_receiveMoneyFragment_to_transactionsFragment"
             app:destination="@id/transactionsFragment" />
         <argument
             android:name="data"
