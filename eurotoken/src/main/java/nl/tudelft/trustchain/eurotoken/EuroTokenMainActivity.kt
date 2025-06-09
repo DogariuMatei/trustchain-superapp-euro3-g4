@@ -13,6 +13,28 @@ import nl.tudelft.trustchain.common.BaseActivity
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import nl.tudelft.trustchain.common.util.HCENFCUtils
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
+import kotlin.math.absoluteValue
+
+
+class SimpleBloomFilter(private val size: Int = 128) {
+    private val bitSet = BooleanArray(size)
+
+    private fun hash1(input: String): Int = input.hashCode().absoluteValue % size
+    private fun hash2(input: String): Int = (input.reversed().hashCode().absoluteValue) % size
+
+    fun mightContain(item: String): Boolean {
+        val h1 = hash1(item)
+        val h2 = hash2(item)
+        return bitSet[h1] && bitSet[h2]
+    }
+
+    fun add(item: String) {
+        bitSet[hash1(item)] = true
+        bitSet[hash2(item)] = true
+    }
+}
+
+
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransactionHandler {
@@ -22,6 +44,8 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
     private val hceNfcUtils by lazy { HCENFCUtils(this) }
     private var isReaderModeActive = false
     private var cardEmulation: CardEmulation? = null
+
+    private val bloomFilter = SimpleBloomFilter()
 
     companion object {
         private const val TAG = "EuroTokenMainActivity"
@@ -173,7 +197,14 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
                         runOnUiThread {
                             isReaderModeActive = false
                             hceNfcUtils.disableReaderMode(this)
-                            onDataReceived(jsonData)
+
+                            if (bloomFilter.mightContain(jsonData)) {
+                                Log.w(TAG, "Duplicate transaction detected: $jsonData")
+                                Toast.makeText(this, "Duplicate transaction detected. You can't do that.", Toast.LENGTH_LONG).show()
+                            } else {
+                                bloomFilter.add(jsonData)
+                                onDataReceived(jsonData)
+                            }
                         }
                     },
                     onError = { error ->
