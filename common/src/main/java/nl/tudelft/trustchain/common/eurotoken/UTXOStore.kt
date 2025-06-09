@@ -62,11 +62,15 @@ open class UTXOStore(val database: Database) {
     }
 
     fun addUtxo(utxo: UTXO) {
-        database.dbUtxoQueries.addUtxo(utxo.txId.hexToBytes(), utxo.txIndex.toLong(), utxo.amount.toLong(), utxo.owner)
+        database.dbUtxoQueries.addUtxo(utxo.txId.hexToBytes(), utxo.txIndex.toLong(), utxo.amount.toLong(), utxo.owner, utxo.spentInTxId?.hexToBytes())
     }
 
     fun removeUtxo(txId: String, txIndex: Int) {
         database.dbUtxoQueries.removeUtxo(txId.hexToBytes(), txIndex.toLong())
+    }
+
+    fun querySpentUtxos(): List<UTXO> {
+        return database.dbUtxoQueries.querySpentUtxos(utxoMapper).executeAsList()
     }
 
     /**
@@ -82,7 +86,11 @@ open class UTXOStore(val database: Database) {
                     database.dbUtxoQueries.addUTXOTransaction(utxoTransaction.txId.hexToBytes(), utxoTransaction.sender, utxoTransaction.recipient)
 
                     for (input in utxoTransaction.inputs) {
-                        updateSpentUtxo(input.txId, input.txIndex, utxoTransaction.txId)
+                        if (getUtxo(input.txId, input.txIndex) != null) {
+                            updateSpentUtxo(input.txId, input.txIndex, utxoTransaction.txId)
+                        } else {
+                            addUtxo(input.copy(spentInTxId = utxoTransaction.txId))
+                        }
                     }
 
                     for (output in utxoTransaction.outputs) {

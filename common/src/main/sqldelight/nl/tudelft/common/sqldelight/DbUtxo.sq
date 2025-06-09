@@ -23,8 +23,8 @@ getUtxosById:
 SELECT * FROM UTXO WHERE txId = ?;
 
 addUtxo:
-INSERT INTO UTXO (txId, txIndex, amount, owner)
-VALUES (?, ?, ?, ?);
+INSERT INTO UTXO (txId, txIndex, amount, owner, spentInTxId)
+VALUES (?, ?, ?, ?, ?);
 
 removeUtxo:
 DELETE FROM UTXO WHERE txId = ? AND txIndex = ?;
@@ -46,3 +46,6 @@ VALUES (?, ?, ?);
 updateSpentUtxo:
 UPDATE UTXO SET spentInTxId = ?
 WHERE txId = ? AND txIndex = ?;
+
+querySpentUtxos:
+SELECT * FROM UTXO WHERE spentInTxId IS NOT NULL;

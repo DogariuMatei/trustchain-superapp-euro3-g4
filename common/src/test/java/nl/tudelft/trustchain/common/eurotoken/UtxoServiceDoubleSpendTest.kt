@@ -3,6 +3,7 @@ import io.mockk.every
 import io.mockk.mockk
 import nl.tudelft.common.sqldelight.Database
 import nl.tudelft.ipv8.attestation.trustchain.TrustChainCommunity
+import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.eurotoken.SqlUtxoStore
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOService
@@ -45,7 +46,7 @@ class UtxoServiceDoubleSpendTest {
         // Build a transaction from the owner to the recipient with an amount of 100.
         val tx1 = ownerUtxoService.buildUtxoTransactionSync(recipient = recipientKey, amount = 100)!!
         val genesisUtxo = UTXO(txId = "", txIndex = 1, amount = GENESIS_AMOUNT, owner = byteArrayOf())
-        assertUtxosEqualExceptTxId(genesisUtxo.copy(owner = ownerKey), tx1.inputs[0])
+        assertEquals(genesisUtxo.copy(txId = ownerKey.toHex(), owner = ownerKey), tx1.inputs[0])
         val transferUtxo = UTXO(txId = tx1.txId, txIndex = 0, amount = 100, owner = recipientKey)
         assertEquals(listOf(transferUtxo,
             UTXO(txId = tx1.txId, txIndex = 1, amount = GENESIS_AMOUNT - 100, owner = ownerKey)), tx1.outputs)
@@ -54,17 +55,14 @@ class UtxoServiceDoubleSpendTest {
         recipientUtxoService.addUTXOTransaction(tx1)
         // Build a second transaction from the recipient back to the owner.
         val tx2 = recipientUtxoService.buildUtxoTransactionSync(recipient = ownerKey, amount = GENESIS_AMOUNT.toLong() + 100)!!
-        assertUtxosEqualExceptTxId(genesisUtxo.copy(owner = recipientKey), tx2.inputs[0])
+        assertEquals(genesisUtxo.copy(txId = recipientKey.toHex(), owner = recipientKey), tx2.inputs[0])
         assertEquals(transferUtxo, tx2.inputs[1])
         assertEquals(listOf(UTXO(txId = tx2.txId, txIndex = 0, amount = GENESIS_AMOUNT + 100, owner = ownerKey)), tx2.outputs)
 
         // Assert that the recipient cannot add the first transaction again, preventing double spending.
         assertFalse(recipientUtxoService.addUTXOTransaction(tx1))
-    }
-
-    private fun assertUtxosEqualExceptTxId(expected: UTXO, actual: UTXO) {
-        assertEquals(expected.txIndex, actual.txIndex)
-        assertEquals(expected.amount, actual.amount)
-        assertArrayEquals(expected.owner, actual.owner)
+        assertEquals(tx1.inputs[0].copy(spentInTxId = tx1.txId), recipientUtxoService.store.querySpentUtxos()[1])
+        assertEquals(ownerUtxoService.rebuildBloomFilter().getBitset, ownerUtxoService.bloomFilter.getBitset)
+        assertEquals(recipientUtxoService.rebuildBloomFilter().getBitset, recipientUtxoService.bloomFilter.getBitset)
     }
 }

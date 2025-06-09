@@ -9,6 +9,8 @@ class BloomFilter {
     private val hashFunctionCount: Int
     private val bitsetSize: Int
     private val bitset: BitSet
+    val getBitset: BitSet
+        get() = bitset
     private val primaryHash: HashFunction
     private val secondaryHash: HashFunction
 

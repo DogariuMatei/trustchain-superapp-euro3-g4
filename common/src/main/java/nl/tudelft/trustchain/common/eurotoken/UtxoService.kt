@@ -16,13 +16,12 @@ import java.security.MessageDigest
 class UTXOService(
      val trustChainCommunity: TrustChainCommunity,
      val store: UTXOStore,
-     expectedUTXOs: Int = 2_000,
-     falsePositiveRate: Float = 0.01f
+     val expectedUTXOs: Int = 2_000,
+     val falsePositiveRate: Float = 0.01f
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    // TODO store the bloom filter in the database
-    private var bloom = BloomFilter(expectedUTXOs, falsePositiveRate)
+    private var bloom = rebuildBloomFilter()
     val bloomFilter: BloomFilter
         get() = bloom
 
@@ -145,22 +144,16 @@ class UTXOService(
         if (success) {
             Log.d("UTXOService", "UTXOTransaction added successfully: ${utxoTransaction.txId}")
             // Update bloom filter with inputs
-            utxoTransaction.inputs.forEach { input ->
-                bloom.add(input.getUTXOIdString().toByteArray())
-                return true
-            }
+            addUtxosToBloomFilter(utxoTransaction.inputs, bloom)
+            return true
         }
-        else {
-            Log.e("UTXOService", "Failed to add UTXOTransaction: ${utxoTransaction.txId}")
-            return false
-        }
+        Log.e("UTXOService", "Failed to add UTXOTransaction: ${utxoTransaction.txId}")
         return false
     }
 
     fun createGenesisUTXO(): Boolean {
         val genesisUtxo = UTXO(
-            txId = "genesis_" +
-                trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            txId = trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
             txIndex = 0,
             amount = GENESIS_AMOUNT,
             owner = "_genesis_".toByteArray(),
@@ -169,8 +162,7 @@ class UTXOService(
         addUTXO(genesisUtxo)
 
         val outputUTXO = UTXO(
-            txId = "genesis_" +
-                trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            txId = trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
             txIndex = 1,
             amount = GENESIS_AMOUNT,
             owner = trustChainCommunity.myPeer.publicKey.keyToBin()
@@ -188,6 +180,18 @@ class UTXOService(
         )
         val success = addUTXOTransaction(genesisTransaction)
         return success
+    }
+
+    private fun addUtxosToBloomFilter(utxos: List<UTXO>, filter: BloomFilter) {
+        utxos.forEach { utxo ->
+            filter.add(utxo.getUTXOIdString().toByteArray())
+        }
+    }
+
+    fun rebuildBloomFilter(): BloomFilter {
+        val filter = BloomFilter(expectedUTXOs, falsePositiveRate)
+        addUtxosToBloomFilter(store.querySpentUtxos(), filter)
+        return filter
     }
 
     companion object {
