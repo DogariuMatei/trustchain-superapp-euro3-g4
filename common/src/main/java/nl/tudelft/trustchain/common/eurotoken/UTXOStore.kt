@@ -114,6 +114,7 @@ open class UTXOStore(val database: Database) {
      */
     fun createContactStateTable() {
         database.dbUtxoQueries.createContactStateTable()
+        database.dbUtxoQueries.createUtxoTransactionTable()
     }
 
     companion object {

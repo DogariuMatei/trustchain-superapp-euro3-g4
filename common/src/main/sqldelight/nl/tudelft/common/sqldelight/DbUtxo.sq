@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS UTXO (
     FOREIGN KEY(spentInTxId) REFERENCES UTXOTransaction(txId)
 );
 
+createUtxoTransactionTable:
 CREATE TABLE IF NOT EXISTS UTXOTransaction (
     txId BLOB NOT NULL PRIMARY KEY,
     sender BLOB NOT NULL,
@@ -30,7 +31,7 @@ removeUtxo:
 DELETE FROM UTXO WHERE txId = ? AND txIndex = ?;
 
 getUtxosByOwner:
-SELECT * FROM UTXO WHERE owner = ?;
+SELECT * FROM UTXO WHERE owner = ? AND spentInTxId IS NULL;
 
 getUtxoTransactionsByParticipation:
 SELECT * FROM UTXOTransaction

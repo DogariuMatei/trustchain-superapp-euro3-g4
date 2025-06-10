@@ -171,8 +171,7 @@ class UTXOService(
         Log.e("GENESIS", "Genesis txId: ${outputUTXO.txId}")
 
         val genesisTransaction = UTXOTransaction(
-            "genesis_" +
-                trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
+            trustChainCommunity.myPeer.publicKey.keyToBin().toHex(),
             "_genesis_".toByteArray(),
             trustChainCommunity.myPeer.publicKey.keyToBin(),
             listOf(genesisUtxo),

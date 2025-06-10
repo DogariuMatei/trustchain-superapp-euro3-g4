@@ -179,7 +179,7 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
     /**
      * Show NFC operation dialog
      */
-    protected fun showNFCDialog(message: String, timeoutSeconds: Int = 30) {
+    protected fun showNFCDialog(message: String, timeoutSeconds: Int = 60) {
         dismissNFCDialog() // Dismiss any existing dialog
 
         nfcDialog = NFCActivationDialog.newInstance(message)
