@@ -24,6 +24,7 @@ import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
 import com.google.gson.Gson
+import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("SetTextI18n")
@@ -325,7 +326,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
                     Handler(Looper.getMainLooper()).postDelayed({
                         dismissNFCDialog()
-                        completeTransaction()
+                        completeTransaction(utxoTransaction)
                     }, 1500)
                 }
             )
@@ -339,7 +340,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     /**
      * Complete transaction and navigate to transaction history
      */
-    private fun completeTransaction() {
+    private fun completeTransaction(utxoTransaction: UTXOTransaction) {
         Log.d(TAG, "=== COMPLETE TRANSACTION ===")
 
         // Final cleanup
@@ -352,6 +353,15 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         ).show()
 
         Log.d(TAG, "Navigating to transaction history")
+
+        val success = utxoService.addUTXOTransaction(utxoTransaction)
+        if(!success) {
+            Log.e(TAG, "Failed to add transaction")
+            Toast.makeText(requireContext(), "Failed to add transaction", Toast.LENGTH_LONG).show()
+        } else {
+            Log.e(TAG, "Transaction added successfully")
+            Toast.makeText(requireContext(), "Transaction added successfully", Toast.LENGTH_LONG).show()
+        }
 
         // Navigate to transaction history
         try {
