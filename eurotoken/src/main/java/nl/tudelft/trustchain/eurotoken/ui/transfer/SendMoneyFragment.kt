@@ -1,5 +1,3 @@
-// Updated SendMoneyFragment.kt
-
 package nl.tudelft.trustchain.eurotoken.ui.transfer
 
 import android.util.Log

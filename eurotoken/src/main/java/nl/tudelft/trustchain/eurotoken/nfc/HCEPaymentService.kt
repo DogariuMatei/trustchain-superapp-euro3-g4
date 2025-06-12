@@ -1,5 +1,3 @@
-// Updated HCEPaymentService.kt
-
 package nl.tudelft.trustchain.eurotoken.nfc
 
 import android.content.Intent
