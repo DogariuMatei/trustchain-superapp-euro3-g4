@@ -139,6 +139,9 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         // Setup contact saving
         binding.newContactName.visibility = View.GONE
 
+        // Setup double spend warning
+        binding.doubleSpendingWarning.visibility = View.GONE
+
         if (senderInfo.senderName.isNotEmpty()) {
             binding.newContactName.setText(senderInfo.senderName)
         }
@@ -278,7 +281,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 // and switch to card emulation mode
                 Handler(Looper.getMainLooper()).postDelayed({
                     switchToPaymentReceiveMode()
-                }, 3000) // Increased from 500ms to 3000ms
+                }, 3000)
             }
         )
     }
@@ -289,7 +292,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
     private fun switchToPaymentReceiveMode() {
         Log.d(TAG, "=== SWITCH TO PAYMENT RECEIVE MODE ===")
 
-        // CRITICAL: Completely clean HCE state before starting reader mode
         HCEPaymentService.clearPendingTransactionData()
         HCEPaymentService.clearOnDataReceivedCallback()
         HCEPaymentService.clearOnDataTransmittedCallback()
@@ -418,10 +420,14 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
 
             // Add the UTXO transaction to the store
             val success = utxoService.addUTXOTransaction(utxoTransaction)
-            if(!success) {
-                Log.e(TAG, "Failed to add UTXO transaction: ${utxoTransaction.txId}")
-                Toast.makeText(requireContext(), "Failed to process transaction", Toast.LENGTH_LONG).show()
+            if (!success) {
+                Log.e(TAG, "Failed to add UTXOs transaction: ${utxoTransaction.txId}")
+                showDoubleSpendingWarning()
+
             }
+
+            Log.d(TAG, "New balance after transaction: ${utxoService.getMyBalance()}")
+            hideDoubleSpendingWarning()
 
             // TODO: Store the transaction block data locally for later synchronization
             // TODO: Validate the transaction cryptographically
@@ -429,7 +435,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
 
             Log.d(TAG, "Processed offline transaction successfully")
             Log.d(TAG, "Amount: $amount, From: $senderName, TxID: ${utxoTransaction.txId.take(20)}...")
-
         } catch (e: Exception) {
             Log.e(TAG, "Error in processOfflineTransaction: ${e.message}", e)
             throw e
@@ -458,6 +463,27 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         } catch (e: Exception) {
             Log.e(TAG, "Failed to navigate: ${e.message}")
         }
+    }
+
+    /**
+     * Show double spending warning in red text box above trust score
+     */
+    private fun showDoubleSpendingWarning() {
+        binding.doubleSpendingWarning.text = "DOUBLE SPENDING DETECTED - TRANSACTION DENIED"
+        binding.doubleSpendingWarning.setBackgroundColor(
+            ContextCompat.getColor(requireContext(), R.color.red)
+        )
+        binding.doubleSpendingWarning.setTextColor(
+            ContextCompat.getColor(requireContext(), android.R.color.white)
+        )
+        binding.doubleSpendingWarning.visibility = View.VISIBLE
+    }
+
+    /**
+     * Hide double spending warning
+     */
+    private fun hideDoubleSpendingWarning() {
+        binding.doubleSpendingWarning.visibility = View.GONE
     }
 
     override fun onNFCReadError(error: String) {

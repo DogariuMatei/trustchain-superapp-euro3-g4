@@ -191,6 +191,25 @@
     </ScrollView>
 
     <TextView
+        android:id="@+id/doubleSpendingWarning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@color/red"
+        android:gravity="center"
+        android:padding="12dp"
+        android:text="DOUBLE SPENDING DETECTED - TRANSACTION DENIED"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        android:elevation="4dp" />
+
+
+    <TextView
         android:id="@+id/trustScoreWarning"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
