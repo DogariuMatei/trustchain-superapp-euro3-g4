@@ -124,7 +124,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             startHCECardEmulation(
                 jsonData = data,
                 message = "Waiting for receiver's phone...",
-                timeoutSeconds = 30,
+                timeoutSeconds = 60,
                 expectResponse = false, // Phase 1 is one-way communication
                 onSuccess = {
                     Log.d(TAG, "HCE card emulation ready - waiting for reader")
@@ -258,7 +258,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
             // Add a small delay to ensure cleanup is complete
             Handler(Looper.getMainLooper()).postDelayed({
-                sendPaymentConfirmation(receiverKey)
+                sendTransaction(receiverKey)
             }, 300)
 
         } catch (e: Exception) {
@@ -268,9 +268,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     }
 
     /**
-     * Send payment confirmation after cleanup
+     * Send actual transaction
      */
-    private fun sendPaymentConfirmation(receiverKey: String) {
+    private fun sendTransaction(receiverKey: String) {
         try {
             // Create actual blockchain transaction
             val utxoTransaction = utxoService.buildUtxoTransactionSync(
@@ -330,7 +330,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error in sendPaymentConfirmation: ${e.message}", e)
+            Log.e(TAG, "Error in sendTransaction: ${e.message}", e)
             Toast.makeText(requireContext(), "Transaction failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }

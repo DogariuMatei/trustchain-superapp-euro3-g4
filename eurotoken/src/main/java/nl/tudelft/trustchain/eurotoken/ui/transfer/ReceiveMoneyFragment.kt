@@ -15,7 +15,6 @@ import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
-import nl.tudelft.trustchain.common.eurotoken.TransactionRepository
 import nl.tudelft.trustchain.common.eurotoken.UTXOService
 import nl.tudelft.trustchain.common.util.viewBinding
 import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
@@ -300,26 +299,10 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
 
         startHCEReaderMode(
             message = "Receiving payment...",
-            timeoutSeconds = 90, // Increased timeout for payment confirmation
+            timeoutSeconds = 90,
             onDataReceived = { paymentData ->
                 Log.d(TAG, "Received payment data: ${paymentData.take(100)}...")
-
-                // Log the data type to verify we're getting the right data
-                try {
-                    val jsonStart = paymentData.indexOf("\"type\":")
-                    if (jsonStart != -1) {
-                        val typeStart = paymentData.indexOf("\"", jsonStart + 7) + 1
-                        val typeEnd = paymentData.indexOf("\"", typeStart)
-                        if (typeEnd != -1) {
-                            val dataType = paymentData.substring(typeStart, typeEnd)
-                            Log.d(TAG, "Received data type: $dataType")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Could not parse data type: ${e.message}")
-                }
-
-                handlePaymentConfirmation(paymentData)
+                handleIncomingTransaction(paymentData)
             }
         )
     }
@@ -327,27 +310,29 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
     /**
      * Handle payment confirmation from sender
      */
-    private fun handlePaymentConfirmation(jsonData: String) {
+    private fun handleIncomingTransaction(jsonData: String) {
         Log.d(TAG, "=== HANDLE PAYMENT CONFIRMATION ===")
 
         try {
-            val paymentConfirmation = JSONObject(jsonData)
-            val dataType = paymentConfirmation.optString("type")
+            val transactionData = JSONObject(jsonData)
+            val dataType = transactionData.optString("type")
 
             if (dataType == "payment_confirmation") {
-                val senderPublicKey = paymentConfirmation.optString("sender_public_key")
-                val amount = paymentConfirmation.optLong("amount", -1L)
+                val senderPublicKey = transactionData.optString("sender_public_key")
+                val amount = transactionData.optLong("amount", -1L)
 
                 // Validate this matches expected sender/amount
                 if (senderPublicKey == senderInfo.senderPublicKey && amount == senderInfo.amount) {
-                    processReceivedPayment(paymentConfirmation)
+                    processReceivedPayment(transactionData)
                 } else {
                     Log.e(TAG, "Payment details don't match - Expected: ${senderInfo.senderPublicKey.take(10)}/$senderInfo.amount, Got: ${senderPublicKey.take(10)}/$amount")
-                    Toast.makeText(requireContext(), "Payment details don't match expected values", Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), "TRANSACTION DENIED: details don't match expected", Toast.LENGTH_LONG).show()
+
+                    // TODO: ADD TRANSACTION DENIED LOGIC - or not idk
                 }
             } else {
                 Log.e(TAG, "Invalid payment confirmation type: $dataType")
-                Toast.makeText(requireContext(), "Invalid payment confirmation", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "INTERNAL-ERR: Invalid payload type", Toast.LENGTH_SHORT).show()
             }
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing payment confirmation: ${e.message}")
@@ -423,7 +408,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             if (!success) {
                 Log.e(TAG, "Failed to add UTXOs transaction: ${utxoTransaction.txId}")
                 showDoubleSpendingWarning()
-
             }
 
             Log.d(TAG, "New balance after transaction: ${utxoService.getMyBalance()}")
