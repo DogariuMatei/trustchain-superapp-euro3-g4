@@ -8,6 +8,7 @@ import nl.tudelft.ipv8.util.*
 import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
 import java.lang.Math.abs
 import java.security.MessageDigest
+import java.util.BitSet
 
 class UTXOService(
      val trustChainCommunity: TrustChainCommunity,
@@ -126,17 +127,17 @@ class UTXOService(
         return false
     }
 
-    fun mergeBloomFilters(externalBloom: BloomFilter): Boolean {
-        return try {
+    fun mergeBloomFilters(externalBitSet: BitSet) {
+        try {
             val newBloom = BloomFilter(expectedUTXOs, falsePositiveRate)
             addUtxosToBloomFilter(store.querySpentUtxos(), newBloom)
-            newBloom.getBitset.or(externalBloom.getBitset)
+            newBloom.getBitset.or(externalBitSet)
 
             // Replace current bloom
             bloom = newBloom
-            true
+            Log.d("UTXOService", "Merged Bloom Filters")
         } catch (e: Exception) {
-            false
+            Log.e("UTXOService", "Failed to Merge Bloom Filters")
         }
     }
 

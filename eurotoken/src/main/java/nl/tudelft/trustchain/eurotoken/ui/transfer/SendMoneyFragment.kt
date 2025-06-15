@@ -24,6 +24,7 @@ import com.google.gson.Gson
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
+import android.util.Base64
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("SetTextI18n")
@@ -94,7 +95,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         senderInfo.put("sender_name", contact?.name ?: "")
         senderInfo.put("amount", amount)
         senderInfo.put("input_utxos", gson.toJson(pairOfInputUtxosAndSum.first))
-        senderInfo.put("bloom_filter", gson.toJson(bloomFilter))
+        senderInfo.put("bloom_bitset", senderInfo.put("bloom_bitset", Base64.encodeToString(bloomFilter.getBitset.toByteArray(), Base64.DEFAULT)))
         senderInfo.put("timestamp", System.currentTimeMillis())
 
         // Add trust data - recent counterparties for trust score building
