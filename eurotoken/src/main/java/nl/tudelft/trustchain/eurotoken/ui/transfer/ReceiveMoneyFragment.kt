@@ -125,13 +125,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 "BAG ALERT! MAJOR BAG ALERT!",
                 Toast.LENGTH_LONG
             ).show()
-            // Navigate to transaction history early
-            try {
-                findNavController().navigate(R.id.action_receiveMoneyFragment_to_transactionsFragment)
-                Log.d(TAG, "Navigated to transactions fragment after DOUBLE SPENDING BY THIS SILLY GUY!")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to navigate: ${e.message}")
-            }
         }
         hideDoubleSpendingWarning()
     }
