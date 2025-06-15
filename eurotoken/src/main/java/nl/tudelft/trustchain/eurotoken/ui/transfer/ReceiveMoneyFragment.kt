@@ -28,6 +28,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
+import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_money) {
@@ -57,7 +58,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         val senderName: String,
         val amount: Long,
         val commitedUtxos: List<UTXO>,
-        val senderBalance: Long,
+        val bloomFilter: BloomFilter,
         val recentCounterparties: List<String>
     )
 
@@ -76,6 +77,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             setupUI()
             displayTrustScore()
             checkDoubleSpendingAttempt()
+            mergeBloomFilters()
 
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing sender data: ${e.message}")
@@ -94,7 +96,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         val senderPublicKey = senderData.optString("sender_public_key")
         val senderName = senderData.optString("sender_name")
         val amount = senderData.optLong("amount", -1L)
-        val senderBalance = senderData.optLong("sender_balance", -1L)
         val counterpartiesStr = senderData.optString("recent_counterparties", "")
         val recentCounterparties = if (counterpartiesStr.isNotEmpty()) {
             counterpartiesStr.split(",")
@@ -105,11 +106,13 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         val listType = object : TypeToken<List<UTXO>>() {}.type
         val commitedUtxos: List<UTXO> = gson.fromJson(senderData.getString("input_utxos"), listType)
 
+        val senderBloomFilter = gson.fromJson(senderData.getString("bloom_filter"), BloomFilter::class.java)
+
         if (senderPublicKey.isEmpty() || amount <= 0) {
             throw JSONException("Invalid sender data: missing required fields")
         }
 
-        senderInfo = SenderInfo(senderPublicKey, senderName, amount, commitedUtxos, senderBalance, recentCounterparties)
+        senderInfo = SenderInfo(senderPublicKey, senderName, amount, commitedUtxos, senderBloomFilter, recentCounterparties)
         Log.d(TAG, "Parsed sender info - Amount: ${senderInfo.amount}, From: ${senderInfo.senderName}")
 
         // Update trust scores based on received counterparties
@@ -127,6 +130,13 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             ).show()
         }
         hideDoubleSpendingWarning()
+    }
+
+    private fun mergeBloomFilters(){
+        val success = utxoService.mergeBloomFilters(senderInfo.bloomFilter)
+        if (!success){
+            Log.e(TAG, "Could not merge Bloom Filters")
+        }
     }
 
     /**
@@ -427,11 +437,17 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 }
             }
 
+            // Check double spending
+            var success = utxoService.checkDoubleSpending(utxoTransaction.inputs)
+            if (!success) {
+                Log.e(TAG, "Double Spending DETEEECTEEED: ${utxoTransaction.txId}")
+                showDoubleSpendingWarning()
+            }
+
             // Add the UTXO transaction to the store
-            val success = utxoService.addUTXOTransaction(utxoTransaction)
+            success = utxoService.addUTXOTransaction(utxoTransaction)
             if (!success) {
                 Log.e(TAG, "Failed to add UTXOs transaction: ${utxoTransaction.txId}")
-                showDoubleSpendingWarning()
             }
 
             Log.d(TAG, "New balance after transaction: ${utxoService.getMyBalance()}")

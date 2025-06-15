@@ -23,6 +23,7 @@ import org.json.JSONObject
 import com.google.gson.Gson
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
+import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("SetTextI18n")
@@ -40,6 +41,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     private var amount: Long = 0
     private var pairOfInputUtxosAndSum: Pair<List<UTXO>, Long> = Pair(emptyList(), 0)
     private var receiverPublicKey: String? = null
+    private var bloomFilter = utxoService.rebuildBloomFilter()
 
     override fun onViewCreated(
         view: View,
@@ -92,14 +94,11 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         senderInfo.put("sender_name", contact?.name ?: "")
         senderInfo.put("amount", amount)
         senderInfo.put("input_utxos", gson.toJson(pairOfInputUtxosAndSum.first))
+        senderInfo.put("bloom_filter", gson.toJson(bloomFilter))
         senderInfo.put("timestamp", System.currentTimeMillis())
 
         // Add trust data - recent counterparties for trust score building
         senderInfo.put("recent_counterparties", recentCounterparties.joinToString(","))
-
-        // Add current balance for transparency
-        val currentBalance = utxoService.getMyBalance()
-        senderInfo.put("sender_balance", currentBalance)
 
         senderPayloadData = senderInfo.toString()
         Log.d(TAG, "Sender payload created: ${senderPayloadData?.take(200)}...")

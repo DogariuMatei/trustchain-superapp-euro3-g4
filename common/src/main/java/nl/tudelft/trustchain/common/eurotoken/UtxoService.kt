@@ -32,7 +32,6 @@ class UTXOService(
     */
     fun removeUTXO(utxo: UTXO) {
         store.removeUtxo(utxo.txId, utxo.txIndex)
-
         // Add spent UTXO to bloom filter
         bloom.add(utxo.getUTXOIdString().toByteArray())
     }
@@ -127,13 +126,21 @@ class UTXOService(
         return false
     }
 
-    fun addUTXOTransaction(utxoTransaction: UTXOTransaction): Boolean {
-        // Check for double spending
-        if (checkDoubleSpending(utxoTransaction.inputs)) {
-            Log.e("UTXOService", "Double spending detected for transaction: ${utxoTransaction.txId}")
-            return false
-        }
+    fun mergeBloomFilters(externalBloom: BloomFilter): Boolean {
+        return try {
+            val newBloom = BloomFilter(expectedUTXOs, falsePositiveRate)
+            addUtxosToBloomFilter(store.querySpentUtxos(), newBloom)
+            newBloom.getBitset.or(externalBloom.getBitset)
 
+            // Replace current bloom
+            bloom = newBloom
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun addUTXOTransaction(utxoTransaction: UTXOTransaction): Boolean {
         val success = store.addUTXOTransaction(utxoTransaction)
         if (success) {
             Log.d("UTXOService", "UTXOTransaction added successfully: ${utxoTransaction.txId}")
