@@ -25,6 +25,8 @@ import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONException
 import org.json.JSONObject
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -54,6 +56,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         val senderPublicKey: String,
         val senderName: String,
         val amount: Long,
+        val commitedUtxos: List<UTXO>,
         val senderBalance: Long,
         val recentCounterparties: List<String>
     )
@@ -72,6 +75,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             parseSenderData(senderDataJson)
             setupUI()
             displayTrustScore()
+            checkDoubleSpendingAttempt()
 
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing sender data: ${e.message}")
@@ -85,6 +89,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
      */
     private fun parseSenderData(jsonData: String) {
         val senderData = JSONObject(jsonData)
+        val gson = Gson()
 
         val senderPublicKey = senderData.optString("sender_public_key")
         val senderName = senderData.optString("sender_name")
@@ -97,15 +102,38 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             emptyList()
         }
 
+        val listType = object : TypeToken<List<UTXO>>() {}.type
+        val commitedUtxos: List<UTXO> = gson.fromJson(senderData.getString("input_utxos"), listType)
+
         if (senderPublicKey.isEmpty() || amount <= 0) {
             throw JSONException("Invalid sender data: missing required fields")
         }
 
-        senderInfo = SenderInfo(senderPublicKey, senderName, amount, senderBalance, recentCounterparties)
+        senderInfo = SenderInfo(senderPublicKey, senderName, amount, commitedUtxos, senderBalance, recentCounterparties)
         Log.d(TAG, "Parsed sender info - Amount: ${senderInfo.amount}, From: ${senderInfo.senderName}")
 
         // Update trust scores based on received counterparties
         updateTrustScores(recentCounterparties)
+    }
+
+    private fun checkDoubleSpendingAttempt(){
+        val success = utxoService.checkDoubleSpending(senderInfo.commitedUtxos)
+        if (!success) {
+            showDoubleSpendingWarning()
+            Toast.makeText(
+                requireContext(),
+                "BAG ALERT! MAJOR BAG ALERT!",
+                Toast.LENGTH_LONG
+            ).show()
+            // Navigate to transaction history early
+            try {
+                findNavController().navigate(R.id.action_receiveMoneyFragment_to_transactionsFragment)
+                Log.d(TAG, "Navigated to transactions fragment after DOUBLE SPENDING BY THIS SILLY GUY!")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to navigate: ${e.message}")
+            }
+        }
+        hideDoubleSpendingWarning()
     }
 
     /**
@@ -318,11 +346,14 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             val dataType = transactionData.optString("type")
 
             if (dataType == "payment_confirmation") {
+                val gson = Gson()
                 val senderPublicKey = transactionData.optString("sender_public_key")
                 val amount = transactionData.optLong("amount", -1L)
+                val utxoTransactionJson = transactionData.getJSONObject("utxo_transaction").toString()
+                val utxoTransaction = gson.fromJson(utxoTransactionJson, UTXOTransaction::class.java)
 
                 // Validate this matches expected sender/amount
-                if (senderPublicKey == senderInfo.senderPublicKey && amount == senderInfo.amount) {
+                if (senderPublicKey == senderInfo.senderPublicKey && amount == senderInfo.amount && utxoTransaction.inputs == senderInfo.commitedUtxos) {
                     processReceivedPayment(transactionData)
                 } else {
                     Log.e(TAG, "Payment details don't match - Expected: ${senderInfo.senderPublicKey.take(10)}/$senderInfo.amount, Got: ${senderPublicKey.take(10)}/$amount")

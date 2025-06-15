@@ -1,12 +1,8 @@
 package nl.tudelft.trustchain.common.eurotoken
 
-import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import nl.tudelft.ipv8.android.IPv8Android
 import nl.tudelft.ipv8.attestation.trustchain.TrustChainCommunity
 import nl.tudelft.ipv8.util.*
 import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
@@ -72,28 +68,10 @@ class UTXOService(
         return balance
     }
 
-    fun buildUtxoTransaction(
-        recipient: ByteArray,
-        amount: Long
-    ): Boolean {
-        Log.d("UTXOService", "sending amount: $amount")
-        if (getMyBalance() - amount < 0) {
-            return false
-        }
-        scope.launch {
-            buildUtxoTransactionSync(recipient, amount)
-        }
-        return true
-    }
-
-    fun buildUtxoTransactionSync(
-        recipient: ByteArray,
-        amount: Long,
-    ): UTXOTransaction? {
-        Log.d("UTXOService", "sending amount: $amount")
+    fun commitUtxoInputs (amount: Long): Pair<List<UTXO>, Long>?{
+        Log.d("UTXOService", "calculating input UTXOs and commiting...")
         val myPublicKey = trustChainCommunity.myPeer.publicKey.keyToBin()
 
-        // 1) gather available UTXOs
         val utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
 
         if (getMyBalance() - amount < 0) {
@@ -108,6 +86,22 @@ class UTXOService(
             inputs += u; sum += u.amount
             if (sum >= amount) break
         }
+        return Pair(inputs, sum)
+    }
+
+    fun buildUtxoTransactionSync(
+        recipient: ByteArray,
+        amount: Long,
+        inputUtxos: List<UTXO>,
+        sum: Long
+    ): UTXOTransaction? {
+        Log.d("UTXOService", "sending amount: $amount")
+        val myPublicKey = trustChainCommunity.myPeer.publicKey.keyToBin()
+
+        if (getMyBalance() - amount < 0) {
+            Log.d("UTXOService", "Insufficient funds")
+            return null
+        }
 
         // 3) prepare outputs: recipient + change
         val txid = MessageDigest.getInstance("SHA-256").digest(System.nanoTime().toString().toByteArray())
@@ -117,14 +111,14 @@ class UTXOService(
         if (change > 0) outs += UTXO(txid.toHex(), 1, change.toInt(), trustChainCommunity.myPeer.publicKey.keyToBin())
 
         // 4) Build the UTXO Transaction
-        val utxoTransaction = UTXOTransaction.create(txid.toHex(), myPublicKey, recipient, inputs, outs)
+        val utxoTransaction = UTXOTransaction.create(txid.toHex(), myPublicKey, recipient, inputUtxos, outs)
 
         return utxoTransaction
     }
 
-    fun checkDoubleSpending(utxoTransaction: UTXOTransaction): Boolean {
+    fun checkDoubleSpending(input_utxos: List<UTXO>): Boolean {
         // Check if any input UTXO is already spent
-        for (input in utxoTransaction.inputs) {
+        for (input in input_utxos) {
             if (bloom.contains(input.getUTXOIdString().toByteArray())) {
                 Log.d("UTXOService", "Double spending detected for input: ${input.getUTXOIdString()}")
                 return true
@@ -135,7 +129,7 @@ class UTXOService(
 
     fun addUTXOTransaction(utxoTransaction: UTXOTransaction): Boolean {
         // Check for double spending
-        if (checkDoubleSpending(utxoTransaction)) {
+        if (checkDoubleSpending(utxoTransaction.inputs)) {
             Log.e("UTXOService", "Double spending detected for transaction: ${utxoTransaction.txId}")
             return false
         }

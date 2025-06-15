@@ -11,7 +11,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.navigation.fragment.findNavController
-import nl.tudelft.ipv8.keyvault.defaultCryptoProvider
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import nl.tudelft.trustchain.common.contacts.ContactStore
@@ -22,6 +21,7 @@ import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import org.json.JSONObject
 import com.google.gson.Gson
+import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -38,6 +38,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     private var senderPayloadData: String? = null
     private var isPhase1Complete = false
     private var amount: Long = 0
+    private var pairOfInputUtxosAndSum: Pair<List<UTXO>, Long> = Pair(emptyList(), 0)
     private var receiverPublicKey: String? = null
 
     override fun onViewCreated(
@@ -81,11 +82,16 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         val recentTransactions = transactionRepository.getTransactions(10)
         val recentCounterparties = recentTransactions.map { it.receiver.keyToBin().toHex() }.distinct().take(5)
 
+        // commit to specific UTXOs
+        pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(amount)!!
+        val gson = Gson()
+
         val senderInfo = JSONObject()
         senderInfo.put("type", "sender_info")
         senderInfo.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
         senderInfo.put("sender_name", contact?.name ?: "")
         senderInfo.put("amount", amount)
+        senderInfo.put("input_utxos", gson.toJson(pairOfInputUtxosAndSum.first))
         senderInfo.put("timestamp", System.currentTimeMillis())
 
         // Add trust data - recent counterparties for trust score building
@@ -275,7 +281,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             // Create actual blockchain transaction
             val utxoTransaction = utxoService.buildUtxoTransactionSync(
                 receiverKey.hexToBytes(),
-                amount
+                amount,
+                pairOfInputUtxosAndSum.first,
+                pairOfInputUtxosAndSum.second
             )
             if (utxoTransaction == null) {
                 Log.e(TAG, "Failed to create utxo transaction")
