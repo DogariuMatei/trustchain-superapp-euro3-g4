@@ -278,7 +278,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         receiverConfirmation.put("type", "receiver_ready")
         receiverConfirmation.put("receiver_public_key", myPeer.publicKey.keyToBin().toHex())
         receiverConfirmation.put("timestamp", System.currentTimeMillis())
-        // TODO add sender bloom filter here
+        receiverConfirmation.put("bloom_bitset", Base64.encodeToString(utxoService.rebuildBloomFilter().getBitset.toByteArray(), Base64.DEFAULT))
 
         Log.d(TAG, "Sending receiver confirmation: ${receiverConfirmation.toString().take(100)}...")
 

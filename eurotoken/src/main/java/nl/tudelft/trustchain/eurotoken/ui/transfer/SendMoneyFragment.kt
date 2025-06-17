@@ -25,6 +25,7 @@ import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
 import android.util.Base64
+import java.util.BitSet
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("SetTextI18n")
@@ -95,7 +96,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         senderInfo.put("sender_name", contact?.name ?: "")
         senderInfo.put("amount", amount)
         senderInfo.put("input_utxos", gson.toJson(pairOfInputUtxosAndSum.first))
-        senderInfo.put("bloom_bitset", senderInfo.put("bloom_bitset", Base64.encodeToString(bloomFilter.getBitset.toByteArray(), Base64.DEFAULT)))
+        senderInfo.put("bloom_bitset", Base64.encodeToString(utxoService.rebuildBloomFilter().getBitset.toByteArray(), Base64.DEFAULT))
         senderInfo.put("timestamp", System.currentTimeMillis())
 
         // Add trust data - recent counterparties for trust score building
@@ -220,7 +221,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
             if (dataType == "receiver_ready") {
                 receiverPublicKey = receiverData.optString("receiver_public_key")
-                // TODO: GET Senders BloomFilter here and merge
+                val receiverBloomBitSet = BitSet.valueOf(Base64.decode(receiverData.getString("bloom_bitset"), Base64.DEFAULT))
 
                 if (receiverPublicKey.isNullOrEmpty()) {
                     Toast.makeText(requireContext(), "Invalid receiver data", Toast.LENGTH_SHORT).show()
@@ -228,7 +229,10 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 }
 
                 Log.d(TAG, "Got receiver public key: ${receiverPublicKey?.take(20)}...")
+                Log.d(TAG, "Got receiver bloom bitset: ${receiverBloomBitSet?.toString()?.take(20)}")
                 updateNFCDialogMessage("Receiver confirmed, creating transaction...")
+
+                utxoService.mergeBloomFilters(receiverBloomBitSet)
 
                 // Give receiver time to switch to reader mode before sending payment
                 Handler(Looper.getMainLooper()).postDelayed({
