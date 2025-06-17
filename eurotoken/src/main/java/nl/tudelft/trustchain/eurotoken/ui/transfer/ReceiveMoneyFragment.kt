@@ -78,9 +78,17 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             parseSenderData(senderDataJson)
             setupUI()
             displayTrustScore()
-            checkDoubleSpendingAttempt()
             utxoService.mergeBloomFilters(senderInfo.bloomBitSet)
-
+            val doubleSpendingDetected = utxoService.checkDoubleSpending(senderInfo.commitedUtxos)
+            if (doubleSpendingDetected) {
+                showDoubleSpendingWarning()
+                Toast.makeText(
+                    requireContext(),
+                    "BAG ALERT! MAJOR BAG ALERT!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing sender data: ${e.message}")
             Toast.makeText(requireContext(), "Invalid sender data", Toast.LENGTH_LONG).show()
@@ -119,19 +127,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
 
         // Update trust scores based on received counterparties
         updateTrustScores(recentCounterparties)
-    }
-
-    private fun checkDoubleSpendingAttempt(){
-        val success = utxoService.checkDoubleSpending(senderInfo.commitedUtxos)
-        if (!success) {
-            showDoubleSpendingWarning()
-            Toast.makeText(
-                requireContext(),
-                "BAG ALERT! MAJOR BAG ALERT!",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        hideDoubleSpendingWarning()
     }
 
     /**
@@ -283,6 +278,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         receiverConfirmation.put("type", "receiver_ready")
         receiverConfirmation.put("receiver_public_key", myPeer.publicKey.keyToBin().toHex())
         receiverConfirmation.put("timestamp", System.currentTimeMillis())
+        // TODO add sender bloom filter here
 
         Log.d(TAG, "Sending receiver confirmation: ${receiverConfirmation.toString().take(100)}...")
 
@@ -350,14 +346,15 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 val utxoTransactionJson = transactionData.getJSONObject("utxo_transaction").toString()
                 val utxoTransaction = gson.fromJson(utxoTransactionJson, UTXOTransaction::class.java)
 
-                // Validate this matches expected sender/amount
-                if (senderPublicKey == senderInfo.senderPublicKey && amount == senderInfo.amount && utxoTransaction.inputs == senderInfo.commitedUtxos) {
+                // Validate incoming data matches the commited values
+                if (senderPublicKey == senderInfo.senderPublicKey &&
+                    amount == senderInfo.amount &&
+                    utxoTransaction.inputs.containsAll(senderInfo.commitedUtxos) &&
+                    senderInfo.commitedUtxos.containsAll(utxoTransaction.inputs)) {
                     processReceivedPayment(transactionData)
                 } else {
-                    Log.e(TAG, "Payment details don't match - Expected: ${senderInfo.senderPublicKey.take(10)}/$senderInfo.amount, Got: ${senderPublicKey.take(10)}/$amount")
-                    Toast.makeText(requireContext(), "TRANSACTION DENIED: details don't match expected", Toast.LENGTH_LONG).show()
-
-                    // TODO: ADD TRANSACTION DENIED LOGIC - or not idk
+                    Log.e(TAG, "PAYMENT DETAILS DO NOT MATCH, ABORTED")
+                    Toast.makeText(requireContext(), "TRANSACTION DENIED: transaction details don't match expected", Toast.LENGTH_LONG).show()
                 }
             } else {
                 Log.e(TAG, "Invalid payment confirmation type: $dataType")
@@ -432,15 +429,19 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 }
             }
 
-            // Check double spending
-            var success = utxoService.checkDoubleSpending(utxoTransaction.inputs)
-            if (!success) {
-                Log.e(TAG, "Double Spending DETEEECTEEED: ${utxoTransaction.txId}")
+            val doubleSpendingDetected = utxoService.checkDoubleSpending(senderInfo.commitedUtxos)
+            if (doubleSpendingDetected) {
                 showDoubleSpendingWarning()
+                Toast.makeText(
+                    requireContext(),
+                    "BAG ALERT! MAJOR BAG ALERT!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
             }
 
-            // Add the UTXO transaction to the store
-            success = utxoService.addUTXOTransaction(utxoTransaction)
+            // Add the UTXO transaction to the store and add spent UTXOs to bloom filter
+            val success = utxoService.addUTXOTransaction(utxoTransaction)
             if (!success) {
                 Log.e(TAG, "Failed to add UTXOs transaction: ${utxoTransaction.txId}")
             }
@@ -448,8 +449,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             Log.d(TAG, "New balance after transaction: ${utxoService.getMyBalance()}")
             hideDoubleSpendingWarning()
 
-            // TODO: Store the transaction block data locally for later synchronization
-            // TODO: Validate the transaction cryptographically
             // TODO: Update local balance tracking
 
             Log.d(TAG, "Processed offline transaction successfully")

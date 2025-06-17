@@ -220,6 +220,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
             if (dataType == "receiver_ready") {
                 receiverPublicKey = receiverData.optString("receiver_public_key")
+                // TODO: GET Senders BloomFilter here and merge
 
                 if (receiverPublicKey.isNullOrEmpty()) {
                     Toast.makeText(requireContext(), "Invalid receiver data", Toast.LENGTH_SHORT).show()
@@ -232,7 +233,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 // Give receiver time to switch to reader mode before sending payment
                 Handler(Looper.getMainLooper()).postDelayed({
                     createAndSendTransaction()
-                }, 2000) // Increased delay to ensure receiver is ready
+                }, 2000)
             } else {
                 Toast.makeText(requireContext(), "Invalid receiver response", Toast.LENGTH_SHORT).show()
             }
@@ -360,6 +361,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         Log.d(TAG, "Navigating to transaction history")
 
+        // Store transaction and add spent UTXOs to BloomFilter
         val success = utxoService.addUTXOTransaction(utxoTransaction)
         if(!success) {
             Log.e(TAG, "Failed to add transaction")
