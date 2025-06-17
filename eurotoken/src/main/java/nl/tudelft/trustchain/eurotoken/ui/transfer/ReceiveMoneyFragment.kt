@@ -79,8 +79,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             setupUI()
             displayTrustScore()
             checkDoubleSpendingAttempt()
-            utxoService.mergeBloomFilters(senderInfo.bloomBitSet)
-
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing sender data: ${e.message}")
             Toast.makeText(requireContext(), "Invalid sender data", Toast.LENGTH_LONG).show()
@@ -121,7 +119,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         updateTrustScores(recentCounterparties)
     }
 
-    private fun checkDoubleSpendingAttempt(){
+    private fun checkDoubleSpendingAttempt() {
         val success = utxoService.checkDoubleSpending(senderInfo.commitedUtxos)
         if (!success) {
             showDoubleSpendingWarning()
@@ -282,6 +280,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         val receiverConfirmation = JSONObject()
         receiverConfirmation.put("type", "receiver_ready")
         receiverConfirmation.put("receiver_public_key", myPeer.publicKey.keyToBin().toHex())
+        receiverConfirmation.put("bloom_bitset", Base64.encodeToString(utxoService.rebuildBloomFilter().getBitset.toByteArray(), Base64.DEFAULT))
         receiverConfirmation.put("timestamp", System.currentTimeMillis())
 
         Log.d(TAG, "Sending receiver confirmation: ${receiverConfirmation.toString().take(100)}...")
@@ -393,7 +392,8 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             amount = amount,
             utxoTransaction = utxoTransaction,
         )
-
+        // Merge filters for receiver since payment successful
+        utxoService.mergeBloomFilters(senderInfo.bloomBitSet)
         // Update UI and navigate
         updateNFCDialogMessage("Payment received!")
 

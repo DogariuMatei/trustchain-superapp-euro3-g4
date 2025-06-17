@@ -23,8 +23,8 @@ import org.json.JSONObject
 import com.google.gson.Gson
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
-import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
 import android.util.Base64
+import java.util.BitSet
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @SuppressLint("SetTextI18n")
@@ -42,7 +42,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     private var amount: Long = 0
     private var pairOfInputUtxosAndSum: Pair<List<UTXO>, Long> = Pair(emptyList(), 0)
     private var receiverPublicKey: String? = null
-    private var bloomFilter = utxoService.rebuildBloomFilter()
+    private var receiverBloomBitSet: BitSet? = null
 
     override fun onViewCreated(
         view: View,
@@ -95,7 +95,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         senderInfo.put("sender_name", contact?.name ?: "")
         senderInfo.put("amount", amount)
         senderInfo.put("input_utxos", gson.toJson(pairOfInputUtxosAndSum.first))
-        senderInfo.put("bloom_bitset", senderInfo.put("bloom_bitset", Base64.encodeToString(bloomFilter.getBitset.toByteArray(), Base64.DEFAULT)))
+        senderInfo.put("bloom_bitset", Base64.encodeToString(utxoService.rebuildBloomFilter().getBitset.toByteArray(), Base64.DEFAULT))
         senderInfo.put("timestamp", System.currentTimeMillis())
 
         // Add trust data - recent counterparties for trust score building
@@ -220,6 +220,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
             if (dataType == "receiver_ready") {
                 receiverPublicKey = receiverData.optString("receiver_public_key")
+                receiverBloomBitSet = BitSet.valueOf(Base64.decode(receiverData.getString("bloom_bitset"), Base64.DEFAULT))
 
                 if (receiverPublicKey.isNullOrEmpty()) {
                     Toast.makeText(requireContext(), "Invalid receiver data", Toast.LENGTH_SHORT).show()
@@ -227,6 +228,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 }
 
                 Log.d(TAG, "Got receiver public key: ${receiverPublicKey?.take(20)}...")
+                Log.d(TAG, "Got receiver bloom bitset: ${receiverBloomBitSet?.toString()?.take(20)}")
                 updateNFCDialogMessage("Receiver confirmed, creating transaction...")
 
                 // Give receiver time to switch to reader mode before sending payment
@@ -327,6 +329,8 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 timeoutSeconds = 30,
                 expectResponse = false,
                 onDataTransmitted = {
+                    // Merge filters for sender since payment successful
+                    receiverBloomBitSet?.let { utxoService.mergeBloomFilters(it) }
                     Log.d(TAG, "Phase 2: Payment confirmation sent successfully")
                     updateNFCDialogMessage("Payment sent successfully!")
 
