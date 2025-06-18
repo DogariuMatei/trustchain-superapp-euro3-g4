@@ -41,6 +41,10 @@ open class UTXOStore(val database: Database) {
         return database.dbUtxoQueries.getUtxosByOwner(owner, utxoMapper).executeAsList()
     }
 
+    fun getSpentUtxosByOwner(owner: ByteArray): List<UTXO> {
+        return database.dbUtxoQueries.getSpentUtxosByOwner(owner, utxoMapper).executeAsList()
+    }
+
     fun updateSpentUtxo(txId: String, txIndex: Int, spentInTxId: String) {
         database.dbUtxoQueries.updateSpentUtxo(
             spentInTxId.hexToBytes(),
@@ -115,6 +119,11 @@ open class UTXOStore(val database: Database) {
     fun createUtxoTables() {
         database.dbUtxoQueries.createUtxoTable()
         database.dbUtxoQueries.createUtxoTransactionTable()
+    }
+
+    fun resetUtxoDb() {
+        database.dbUtxoQueries.clearUtxoTable()
+        database.dbUtxoQueries.clearUtxoTransactionTable()
     }
 
     companion object {

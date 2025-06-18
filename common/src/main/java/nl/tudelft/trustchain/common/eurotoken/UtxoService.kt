@@ -63,13 +63,14 @@ class UTXOService(
         return balance
     }
 
-    fun commitUtxoInputs(amount: Long): Pair<List<UTXO>, Long>?{
+    fun commitUtxoInputs(amount: Long, doubleSpend: Boolean = false): Pair<List<UTXO>, Long>? {
         Log.d("UTXOService", "calculating input UTXOs and commiting...")
         val myPublicKey = trustChainCommunity.myPeer.publicKey.keyToBin()
 
         val utxos: List<UTXO> = store.getUtxosByOwner(myPublicKey)
+        val spentUtxos: List<UTXO> = if (doubleSpend) store.getSpentUtxosByOwner(myPublicKey) else listOf()
 
-        if (getMyBalance() - amount < 0) {
+        if (!doubleSpend && (getMyBalance() - amount < 0)) {
             Log.d("UTXOService", "Insufficient funds")
             return null
         }
@@ -77,6 +78,12 @@ class UTXOService(
         // 2) select utxos (naive: first-fit)
         val inputs = mutableListOf<UTXO>()
         var sum = 0L
+        if (doubleSpend) {
+            val randomSpentUtxo = spentUtxos.random()
+            Log.d("UTXOService", "Using random spent UTXO: $randomSpentUtxo")
+            inputs += randomSpentUtxo.copy(spentInTxId = null)
+            sum += randomSpentUtxo.amount
+        }
         for (u in utxos) {
             inputs += u; sum += u.amount
             if (sum >= amount) break

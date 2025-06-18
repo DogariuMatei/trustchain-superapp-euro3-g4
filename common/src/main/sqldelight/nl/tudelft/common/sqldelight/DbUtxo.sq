@@ -10,6 +10,12 @@ CREATE TABLE IF NOT EXISTS UTXO (
     FOREIGN KEY(spentInTxId) REFERENCES UTXOTransaction(txId)
 );
 
+clearUtxoTable:
+DELETE FROM UTXO;
+
+clearUtxoTransactionTable:
+DELETE FROM UTXOTransaction;
+
 createUtxoTransactionTable:
 CREATE TABLE IF NOT EXISTS UTXOTransaction (
     txId BLOB NOT NULL PRIMARY KEY,
@@ -32,6 +38,9 @@ DELETE FROM UTXO WHERE txId = ? AND txIndex = ?;
 
 getUtxosByOwner:
 SELECT * FROM UTXO WHERE owner = ? AND spentInTxId IS NULL;
+
+getSpentUtxosByOwner:
+SELECT * FROM UTXO WHERE owner = ? AND spentInTxId IS NOT NULL;
 
 getUtxoTransactionsByParticipation:
 SELECT * FROM UTXOTransaction

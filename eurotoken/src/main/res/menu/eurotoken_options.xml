@@ -24,4 +24,10 @@
     <item
         android:id="@+id/utxoTransactionsMenuItem"
         android:title="@string/utxo_transactions_menu_item" />
+    <item
+        android:id="@+id/resetUtxoDb"
+        android:title="@string/reset_utxo_db" />
+    <item
+        android:id="@+id/toggleDoubleSpend"
+        android:title="@string/toggle_double_spend" />
 </menu>

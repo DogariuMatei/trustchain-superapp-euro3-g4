@@ -14,4 +14,6 @@
     <string name="trust_scores_db_item_score">%d%%</string>
     <string name="hce_service_description">EuroToken HCE Payment Service</string>
     <string name="eurotoken_payment_aid_group">EuroToken Payment</string>
+    <string name="reset_utxo_db">Reset DB</string>
+    <string name="toggle_double_spend">Toggle double spend</string>
 </resources>

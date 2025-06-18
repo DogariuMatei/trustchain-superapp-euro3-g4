@@ -254,9 +254,55 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
                         false
                     )
                 )
-                edit.commit()
 
                 createGenesisUTXO()
+                edit.commit()
+                requireActivity().invalidateOptionsMenu()
+                true
+            }
+
+            R.id.resetUtxoDb -> {
+                val sharedPreferences =
+                    requireContext().getSharedPreferences(
+                        EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
+                        Context.MODE_PRIVATE
+                    )
+                val edit = sharedPreferences.edit()
+                edit.putBoolean(
+                    EuroTokenMainActivity.EurotokenPreferences.GENESIS_UTXO_CREATED,
+                    !sharedPreferences.getBoolean(
+                        EuroTokenMainActivity.EurotokenPreferences.GENESIS_UTXO_CREATED,
+                        false
+                    )
+                )
+                utxoStore.resetUtxoDb()
+                edit.commit()
+                requireActivity().invalidateOptionsMenu()
+                true
+            }
+
+            R.id.toggleDoubleSpend -> {
+                val sharedPreferences =
+                    requireContext().getSharedPreferences(
+                        EuroTokenMainActivity.EurotokenPreferences.EUROTOKEN_SHARED_PREF_NAME,
+                        Context.MODE_PRIVATE
+                    )
+                val doubleSpendState = sharedPreferences.getBoolean(
+                    EuroTokenMainActivity.EurotokenPreferences.DOUBLE_SPEND_STATE, false)
+
+                // Create a genesis UTXO for demo mode
+                val edit = sharedPreferences.edit()
+                val newState = !sharedPreferences.getBoolean(
+                    EuroTokenMainActivity.EurotokenPreferences.DOUBLE_SPEND_STATE,
+                    false
+                )
+                edit.putBoolean(
+                    EuroTokenMainActivity.EurotokenPreferences.DOUBLE_SPEND_STATE,
+                    newState
+                )
+
+                edit.commit()
+                Toast.makeText(requireContext(), "New double spend state: $newState", Toast.LENGTH_SHORT).show()
                 requireActivity().invalidateOptionsMenu()
                 true
             }
