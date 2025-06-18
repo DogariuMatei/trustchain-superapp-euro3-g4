@@ -85,7 +85,7 @@ open class EurotokenBaseFragment(contentLayoutId: Int = 0) : BaseFragment(conten
         @Suppress("DEPRECATION")
         setHasOptionsMenu(true)
         trustStore.createContactStateTable()
-        utxoStore.createContactStateTable()
+        utxoStore.createUtxoTables()
 
         lifecycleScope.launchWhenResumed {
         }

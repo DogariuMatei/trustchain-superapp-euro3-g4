@@ -49,14 +49,14 @@ class UTXOServiceTest {
     fun `test double spending detection returns true if bloom contains input`() {
         val tx = UTXOTransaction("txid", ownerKey, recipientKey, listOf(utxo), listOf())
         every { bloomFilter.contains(utxo.getUTXOIdString().toByteArray()) } returns true
-        assertTrue(utxoService.checkDoubleSpending(tx))
+        assertTrue(utxoService.checkDoubleSpending(tx.inputs))
     }
 
     @Test
     fun `test double spending detection returns false if bloom does not contain input`() {
         val tx = UTXOTransaction("txid", ownerKey, recipientKey, listOf(utxo), listOf())
         every { bloomFilter.contains(utxo.getUTXOIdString().toByteArray()) } returns false
-        assertFalse(utxoService.checkDoubleSpending(tx))
+        assertFalse(utxoService.checkDoubleSpending(tx.inputs))
     }
 
     @Test
@@ -68,13 +68,15 @@ class UTXOServiceTest {
     @Test
     fun `test buildUtxoTransactionSync returns null if insufficient funds`() {
         every { utxoStore.getUtxosByOwner(ownerKey) } returns listOf(utxo)
-        assertNull(utxoService.buildUtxoTransactionSync(recipientKey, 200))
+        val pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(200)
+        assertNull(pairOfInputUtxosAndSum)
     }
 
     @Test
     fun `test buildUtxoTransactionSync returns transaction if sufficient funds`() {
         every { utxoStore.getUtxosByOwner(ownerKey) } returns listOf(utxo, utxo2)
-        val tx = utxoService.buildUtxoTransactionSync(recipientKey, 100)
+        val pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(100)!!
+        val tx = utxoService.buildUtxoTransactionSync(recipient = recipientKey, amount = 100, inputUtxos = pairOfInputUtxosAndSum.first, sum = pairOfInputUtxosAndSum.second)
         assertNotNull(tx)
         assertEquals(ownerKey, tx?.sender)
         assertEquals(recipientKey, tx?.recipient)

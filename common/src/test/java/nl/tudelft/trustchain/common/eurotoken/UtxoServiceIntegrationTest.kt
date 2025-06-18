@@ -33,7 +33,7 @@ class UtxoServiceIntegrationTest {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         Database.Schema.create(driver)
         utxoStore = SqlUtxoStore(driver)
-        utxoStore.createContactStateTable()
+        utxoStore.createUtxoTables()
         val trustChainCommunity: TrustChainCommunity = mockk(relaxed = true)
         every { trustChainCommunity.myPeer.publicKey.keyToBin() } returns ownerKey
         utxoService = UTXOService(trustChainCommunity = trustChainCommunity, store = utxoStore)
@@ -58,14 +58,14 @@ class UtxoServiceIntegrationTest {
         val tx = UTXOTransaction(txId = "aa", sender = recipientKey, recipient = ownerKey,
             inputs = listOf(UTXO(txId = "aa", txIndex = 0, amount = 100, owner = recipientKey)), outputs = listOf())
         utxoService.addUTXOTransaction(tx)
-        assertTrue(utxoService.checkDoubleSpending(tx))
+        assertTrue(utxoService.checkDoubleSpending(tx.inputs))
     }
 
     @Test
     fun `test double spending detection returns false if bloom does not contain input`() {
         val tx = UTXOTransaction(txId = "aa", sender = recipientKey, recipient = ownerKey,
             inputs = listOf(UTXO(txId = "aa", txIndex = 0, amount = 100, owner = recipientKey)), outputs = listOf())
-        assertFalse(utxoService.checkDoubleSpending(tx))
+        assertFalse(utxoService.checkDoubleSpending(tx.inputs))
     }
 
     @Test
@@ -76,16 +76,18 @@ class UtxoServiceIntegrationTest {
     }
 
     @Test
-    fun `test buildUtxoTransactionSync returns null if insufficient funds`() {
+    fun `test commitUtxoInputs returns null if insufficient funds`() {
         utxoStore.addUtxo(utxo)
-        assertNull(utxoService.buildUtxoTransactionSync(recipientKey, 200))
+        val pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(200)
+        assertNull(pairOfInputUtxosAndSum)
     }
 
     @Test
     fun `test buildUtxoTransactionSync returns transaction if sufficient funds`() {
         utxoStore.addUtxo(utxo)
         utxoStore.addUtxo(utxo2)
-        val tx = utxoService.buildUtxoTransactionSync(recipientKey, 100)
+        val pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(100)!!
+        val tx = utxoService.buildUtxoTransactionSync(recipient = recipientKey, amount = 100, inputUtxos = pairOfInputUtxosAndSum.first, sum = pairOfInputUtxosAndSum.second)
         assertNotNull(tx)
         assertEquals(ownerKey, tx?.sender)
         assertEquals(recipientKey, tx?.recipient)

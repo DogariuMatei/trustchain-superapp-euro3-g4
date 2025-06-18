@@ -25,7 +25,7 @@ class UtxoServiceDoubleSpendTest {
         val driver1 = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         Database.Schema.create(driver1)
         val ownerUtxoStore = SqlUtxoStore(driver1)
-        ownerUtxoStore.createContactStateTable()
+        ownerUtxoStore.createUtxoTables()
         var trustChainCommunity: TrustChainCommunity = mockk(relaxed = true)
         every { trustChainCommunity.myPeer.publicKey.keyToBin() } returns ownerKey
         ownerUtxoService = UTXOService(trustChainCommunity = trustChainCommunity, store = ownerUtxoStore)
@@ -34,7 +34,7 @@ class UtxoServiceDoubleSpendTest {
         val driver2 = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         Database.Schema.create(driver2)
         val recipientUtxoStore = SqlUtxoStore(driver2)
-        recipientUtxoStore.createContactStateTable()
+        recipientUtxoStore.createUtxoTables()
         trustChainCommunity = mockk(relaxed = true)
         every { trustChainCommunity.myPeer.publicKey.keyToBin() } returns recipientKey
         recipientUtxoService = UTXOService(trustChainCommunity = trustChainCommunity, store = recipientUtxoStore)
@@ -44,7 +44,8 @@ class UtxoServiceDoubleSpendTest {
     @Test
     fun `test double spend`() {
         // Build a transaction from the owner to the recipient with an amount of 100.
-        val tx1 = ownerUtxoService.buildUtxoTransactionSync(recipient = recipientKey, amount = 100)!!
+        var pairOfInputUtxosAndSum = ownerUtxoService.commitUtxoInputs(100)!!
+        val tx1 = ownerUtxoService.buildUtxoTransactionSync(recipient = recipientKey, amount = 100, inputUtxos = pairOfInputUtxosAndSum.first, sum = pairOfInputUtxosAndSum.second)!!
         val genesisUtxo = UTXO(txId = "", txIndex = 1, amount = GENESIS_AMOUNT, owner = byteArrayOf())
         assertEquals(genesisUtxo.copy(txId = ownerKey.toHex(), owner = ownerKey), tx1.inputs[0])
         val transferUtxo = UTXO(txId = tx1.txId, txIndex = 0, amount = 100, owner = recipientKey)
@@ -54,7 +55,8 @@ class UtxoServiceDoubleSpendTest {
         // Add the transaction to the recipient's UTXO store.
         recipientUtxoService.addUTXOTransaction(tx1)
         // Build a second transaction from the recipient back to the owner.
-        val tx2 = recipientUtxoService.buildUtxoTransactionSync(recipient = ownerKey, amount = GENESIS_AMOUNT.toLong() + 100)!!
+        pairOfInputUtxosAndSum = recipientUtxoService.commitUtxoInputs(GENESIS_AMOUNT.toLong() + 100)!!
+        val tx2 = recipientUtxoService.buildUtxoTransactionSync(recipient = ownerKey, amount = GENESIS_AMOUNT.toLong() + 100, inputUtxos = pairOfInputUtxosAndSum.first, sum = pairOfInputUtxosAndSum.second)!!
         assertEquals(genesisUtxo.copy(txId = recipientKey.toHex(), owner = recipientKey), tx2.inputs[0])
         assertEquals(transferUtxo, tx2.inputs[1])
         assertEquals(listOf(UTXO(txId = tx2.txId, txIndex = 0, amount = GENESIS_AMOUNT + 100, owner = ownerKey)), tx2.outputs)

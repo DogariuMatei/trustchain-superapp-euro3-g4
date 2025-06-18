@@ -112,8 +112,8 @@ open class UTXOStore(val database: Database) {
     /**
      * Initialize the database.
      */
-    fun createContactStateTable() {
-        database.dbUtxoQueries.createContactStateTable()
+    fun createUtxoTables() {
+        database.dbUtxoQueries.createUtxoTable()
         database.dbUtxoQueries.createUtxoTransactionTable()
     }
 

@@ -41,11 +41,6 @@ class UTXOService(
         return store.getUtxo(txId, txIndex)
     }
 
-    fun getUtxosByOwner(owner: ByteArray): List<UTXO> {
-        Log.e("UTXOService", "Got UTXOs for owner: ${owner.toHex()}")
-        return store.getUtxosByOwner(owner)
-    }
-
     fun getUtxoTransactionsByParticipation(myPublicKey: ByteArray): List<UTXOTransaction> {
         Log.e("UTXOService", "Got UTXO Transactions for participant: ${myPublicKey.toHex()}")
         return store.getUtxoTransactionsByParticipation(myPublicKey)
@@ -68,7 +63,7 @@ class UTXOService(
         return balance
     }
 
-    fun commitUtxoInputs (amount: Long): Pair<List<UTXO>, Long>?{
+    fun commitUtxoInputs(amount: Long): Pair<List<UTXO>, Long>?{
         Log.d("UTXOService", "calculating input UTXOs and commiting...")
         val myPublicKey = trustChainCommunity.myPeer.publicKey.keyToBin()
 
