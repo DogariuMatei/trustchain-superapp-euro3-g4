@@ -2,20 +2,24 @@
 ## Phase 1 - First NFC 'Tap': Transaction Negotiation 
 ### Sender → Receiver (via NFC Card Emulation)  
 
-* Sender transmits transaction details (amount, sender info, trust data)  
-* Receiver reviews transaction and trust score  
+* Sender transmits transaction details (amount, sender info, trust data, UTXOs, and bloom filter)  
+* Receiver reviews transaction, trust score
+* Receiver computes union between his and the received bloom filer
+* Double spending would be detected here
 * Receiver can accept/reject before any money moves  
 
 ## Phase 2 - Second NFC 'Tap': Transaction Execution  
 ### Receiver → Sender (confirmation)
-* Receiver sends acceptance confirmation with public key
+* Receiver sends acceptance confirmation with public key and his bloom filter
+* Sender computes union between his and the received bloom filter (both parties now have merged b.f.)
 
 ### Sender → Receiver (final transaction)
 * Sender creates UTXO transaction with:
     * Input UTXOs being spent
     * Output UTXOs (recipient + change)
     * Complete transaction data
-* Receiver verifies input UTXOs against local bloom filter for double-spending
+* After sending Transaction, Sender also adds spent UTXOs to his bloom filter
+* Receiver verifies transaction details match the commited to ones from Phase 1
 * Receiver processes transaction locally and updates balance
 * Receiver adds spent UTXOs to bloom filter to prevent future double-spending
 
@@ -43,11 +47,11 @@
 ### Sender Side:
 1. Payment Initiation (`SendMoneyFragment.createSenderPayload()`):
    * Creates comprehensive sender information JSON payload
-   * Includes sender public key, display name, payment amount, current balance, timestamp
-   * Generates trust-score data with recent transaction peers
+   * Includes sender public key, display name, payment amount, UTXOs to-be-spent, and bloom filter
+   * Performs UTXO input selection using first-fit algorithm, caches this value
 
 2. HCE Card Emulation Setup (`SendMoneyFragment.startPhase1HCETransmission()`):
-    * Configures device as NFC card using HCEPaymentService.setPendingTransactionData()
+    * Configures device as NFC card using `HCEPaymentService.setPendingTransactionData()`
     * Activates card emulation mode with 60-second timeout
     * Displays NFC UI prompting user to tap phones
 
@@ -65,6 +69,7 @@
 2. Data Reception (`TransferFragment.handleReceivedSenderData()`):
     * Receives and validates sender information JSON
     * Verifies data type and required fields
+    * Caches all of this data for additional Phase 2 validation (checking commitment)
     * Navigates to transaction review interface
 
 3. Trust Score Analysis (`ReceiveMoneyFragment.parseSenderData()`):
@@ -76,9 +81,14 @@
     * Retrieves sender's current trust score from `TrustStore.getScore()`
     * Categorizes trust level (High: ≥70%, Average: 30-69%, Low: <30%)
     * Displays color-coded warning/information based on trust level
+   
+5. Double spending Detection:
+    * Receiver merges the 2 bloom filters (this is his new one)
+    * Checks collision between the sent UTXOs and new b.f.
+    * If collision is detected the transaction is aborted automatically
 
-5. Transaction Review Step:
-    * Shows payment amount, sender information, and trust assessment
+6. Transaction Review Step:
+    * Shows payment amount, sender information, and trust assessment, double spending status
     * Provides option to save sender as contact
     * **Allows user to accept or decline transaction before any value is exchanged**
 
@@ -86,7 +96,7 @@
 ### Receiver Side - Confirmation Step
 
 1. Confirmation Step (`ReceiveMoneyFragment.startPhase2Receive()`):
-    * Creates receiver confirmation JSON with public key
+    * Creates receiver confirmation JSON with public key and his bloom filter
     * Switches to HCE card emulation mode for confirmation transmission
     * Sends ready signal to sender device
     * Step is necessary because Sender requires PK of Receiver to create transaction
@@ -100,39 +110,38 @@
 ### Sender Side - Confirmation Received, Create and Send Transaction
 
 1. Receiver Confirmation Processing (`SendMoneyFragment.handleReceiverConfirmation()`):
-    * Validates receiver response and gets public key
-    * Confirms transaction details match initial ones
+    * Validates receiver response and gets public key and bloom filter
+    * Merges bloom filters (now both parties have merged b.f.)
     * Initiates actual transaction creation process
-
 
 2. UTXO Offline Transaction Construction (`SendMoneyFragment.createAndSendTransaction()`):
     * Calls `UTXOService.buildUtxoTransactionSync()` to create transaction
-    * Performs input selection using first-fit algorithm
-    * Generates outputs for recipient and change (if necessary)
+    * Generates outputs for recipient and change (if necessary), using the cached UTXOs
     * Creates transaction ID using SHA-256 hash of timestamp
 
 4. Transaction Transmission (`SendMoneyFragment.sendTransaction()`):
     * Serializes complete UTXO transaction
     * Creates payment JSON with transaction data
     * Transmits via HCE card emulation mode
+   
+5. Transaction Completion (`completeTransaction()`):
+    * Marks input UTXOs as spent in database
+    * Adds new output UTXOs for recipient and change
+    * Navigates to transaction history screen
 
 ### Receiver Side - Process Incoming Transaction Data
 
 1. Payment Deserialization and Init Validation (`ReceiveMoneyFragment.handleIncomingTransaction()`):
     * Receives and deserializes UTXO transaction data
-    * Validates transaction details match Phase 1 information 
-    * Handles any NFC receiving errors
+    * Validates transaction details match Phase 1 information (commitment validation step)
 
-2. Transaction Integration and Bloom Filter Check (`ReceiveMoneyFragment.processOfflineTransaction()`):
-    * Calls `UTXOService.addUTXOTransaction()` to add transaction 
-    * This checks incoming UTXOs with existing bloom filter
-    * Any collisions aborts transaction and alerts user
+2. Transaction Integration (`ReceiveMoneyFragment.processOfflineTransaction()`):
+    * Calls `UTXOService.addUTXOTransaction()` to add transaction
     * On success, updates bloom filter with spent input UTXOs via `BloomFilter.add()`
     * Increments sender trust score in TrustStore 
     * Updates local balance calculations
 
 3. Database Updates (UTXOStore.addUTXOTransaction()):
-    * Checks UTXOs against bloom filter and aborts if collision is detected 
     * Marks input UTXOs as spent in database 
     * Adds new output UTXOs for recipient and change 
     * Has retry mechanism with transaction rollback on failure
