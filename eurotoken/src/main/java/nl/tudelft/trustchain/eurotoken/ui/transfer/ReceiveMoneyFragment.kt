@@ -87,7 +87,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                     "BAG ALERT! MAJOR BAG ALERT!",
                     Toast.LENGTH_LONG
                 ).show()
-                return
             }
         } catch (e: JSONException) {
             Log.e(TAG, "Error parsing sender data: ${e.message}")
@@ -302,7 +301,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 // and switch to card emulation mode
                 Handler(Looper.getMainLooper()).postDelayed({
                     switchToPaymentReceiveMode()
-                }, 4000)
+                }, 3000)
             }
         )
     }
@@ -435,7 +434,6 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                     "BAG ALERT! MAJOR BAG ALERT!",
                     Toast.LENGTH_LONG
                 ).show()
-                return
             }
 
             // Add the UTXO transaction to the store and add spent UTXOs to bloom filter
