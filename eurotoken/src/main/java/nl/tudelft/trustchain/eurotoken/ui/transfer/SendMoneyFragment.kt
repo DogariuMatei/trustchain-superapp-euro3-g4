@@ -24,6 +24,7 @@ import com.google.gson.Gson
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
 import android.util.Base64
+import nl.tudelft.trustchain.eurotoken.EuroTokenMainActivity
 import java.util.BitSet
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -34,6 +35,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         private const val TAG = "SendMoneyFragment"
         const val ARG_AMOUNT = "amount"
     }
+
 
     private val binding by viewBinding(FragmentSendMoneyBinding::bind)
 
@@ -80,15 +82,21 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         val ownKey = myPeer.publicKey
         val contact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(ownKey)
 
-        // Get recent transaction counterparties for trust building
         val recentTransactions = transactionRepository.getTransactions(10)
         val recentCounterparties = recentTransactions.map { it.receiver.keyToBin().toHex() }.distinct().take(5)
 
-        // commit to specific UTXOs
-        pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(amount)!!
+        // Check if we should use cached UTXOs
+        val useCachedUtxos = requireArguments().getBoolean("use_cached_utxos", false)
+
+        pairOfInputUtxosAndSum = if (useCachedUtxos) {
+            // Use cached UTXOs for double spend test
+            (activity as EuroTokenMainActivity).getLastTransactionUtxos() ?: utxoService.commitUtxoInputs(amount)!!
+        } else {
+            // Normal UTXO commitment
+            utxoService.commitUtxoInputs(amount)!!
+        }
 
         val gson = Gson()
-
         val senderInfo = JSONObject()
         senderInfo.put("type", "sender_info")
         senderInfo.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
@@ -97,8 +105,6 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         senderInfo.put("input_utxos", gson.toJson(pairOfInputUtxosAndSum.first))
         senderInfo.put("bloom_bitset", Base64.encodeToString(utxoService.bloomFilter.getBitset.toByteArray(), Base64.DEFAULT))
         senderInfo.put("timestamp", System.currentTimeMillis())
-
-        // Add trust data - recent counterparties for trust score building
         senderInfo.put("recent_counterparties", recentCounterparties.joinToString(","))
 
         senderPayloadData = senderInfo.toString()
@@ -313,6 +319,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
      */
     private fun completeTransaction(utxoTransaction: UTXOTransaction) {
         Log.d(TAG, "=== COMPLETE TRANSACTION ===")
+
+        // Cache the UTXOs for potential double spend testing
+        (activity as? EuroTokenMainActivity)?.setLastTransactionUtxos(pairOfInputUtxosAndSum)
 
         // Final cleanup
         getHCEHandler()?.stopHCECardEmulation()

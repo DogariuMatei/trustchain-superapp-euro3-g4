@@ -101,6 +101,14 @@
             android:layout_height="wrap_content"
             android:text="Activate NFC" />
 
+        <Button
+             android:id="@+id/btnTestDoubleSpend"
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+             android:background="@color/red"
+            android:textColor="@color/white"
+             android:text="Double Spend (sending last transaction)" />
+
     </LinearLayout>
 
 </ScrollView>

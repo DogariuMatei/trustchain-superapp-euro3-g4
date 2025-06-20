@@ -200,6 +200,21 @@ class TransferFragment : EurotokenNFCBaseFragment(R.layout.fragment_transfer_eur
                 TransactionPhase.WAITING_PHASE1 -> deactivateNFCReceive()
             }
         }
+
+        // Test Double Spending Button - sends previous cached transaction
+        binding.btnTestDoubleSpend.setOnClickListener {
+            val amount = getAmount(binding.edtAmount.text.toString())
+            val cachedUtxos = (activity as EuroTokenMainActivity).getLastTransactionUtxos()
+
+            if (amount > 0 && cachedUtxos != null) {
+                val args = Bundle()
+                args.putLong(SendMoneyFragment.ARG_AMOUNT, amount)
+                args.putBoolean("use_cached_utxos", true)
+                findNavController().navigate(R.id.action_transferFragment_to_sendMoneyFragment, args)
+            } else {
+                Toast.makeText(requireContext(), "No previous transaction to reuse or invalid amount", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     /**

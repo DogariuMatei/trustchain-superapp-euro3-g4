@@ -10,6 +10,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import nl.tudelft.trustchain.common.BaseActivity
+import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.eurotoken.ui.EurotokenNFCBaseFragment
 import nl.tudelft.trustchain.common.util.HCENFCUtils
 import nl.tudelft.trustchain.eurotoken.nfc.HCEPaymentService
@@ -25,6 +26,14 @@ class EuroTokenMainActivity : BaseActivity(), EurotokenNFCBaseFragment.HCETransa
 
     companion object {
         private const val TAG = "EuroTokenMainActivity"
+    }
+
+    private var lastTransactionUtxos: Pair<List<UTXO>, Long>? = null
+
+    fun getLastTransactionUtxos(): Pair<List<UTXO>, Long>? = lastTransactionUtxos
+
+    fun setLastTransactionUtxos(utxos: Pair<List<UTXO>, Long>) {
+        lastTransactionUtxos = utxos
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
