@@ -69,7 +69,6 @@ class HCENFCUtils(private val context: Context) {
      * Check if NFC is available and enabled
      */
     fun isNFCAvailable(): Boolean {
-        Log.d(TAG, "Checking NFC availability...")
         val adapter = nfcAdapter
 
         if (adapter == null) {
@@ -105,8 +104,6 @@ class HCENFCUtils(private val context: Context) {
                     activity,
                     { tag ->
                         Log.d(TAG, "Tag discovered in reader mode")
-                        Log.d(TAG, "Tag ID: ${tag.id?.let { byteArrayToHexString(it) }}")
-                        Log.d(TAG, "Tech list: ${tag.techList?.joinToString()}")
                         onTagDiscovered(tag)
                     },
                     READER_FLAGS,
@@ -150,8 +147,6 @@ class HCENFCUtils(private val context: Context) {
     ) {
         Log.d(TAG, "=== SEND DATA TO HCE START ===")
         Log.d(TAG, "Attempting to send JSON data to HCE")
-        Log.d(TAG, "JSON data length: ${jsonData.length}")
-        Log.d(TAG, "JSON data preview: ${jsonData.take(200)}...")
 
         val isoDep = IsoDep.get(tag)
         if (isoDep == null) {
@@ -161,18 +156,15 @@ class HCENFCUtils(private val context: Context) {
         }
 
         try {
-            Log.d(TAG, "Connecting to IsoDep tag...")
             isoDep.connect()
-            Log.d(TAG, "Connected successfully")
+            Log.d(TAG, "Connected to IsoDep tag successfully")
             Log.d(TAG, "Max transceive length: ${isoDep.maxTransceiveLength}")
 
+            Log.d(TAG, "Trying to select APDU command and transceive it")
             // Step 1: Select application by AID
-            Log.d(TAG, "Step 1: Selecting application by AID")
             val selectCommand = createSelectAidApdu()
-            Log.d(TAG, "SELECT AID APDU: ${byteArrayToHexString(selectCommand)}")
-
             val selectResponse = isoDep.transceive(selectCommand)
-            Log.d(TAG, "SELECT response: ${byteArrayToHexString(selectResponse)}")
+            Log.d(TAG, "Successfully transceived APDU command")
 
             if (!isSuccessResponse(selectResponse)) {
                 Log.e(TAG, "Failed to select application")
@@ -186,16 +178,13 @@ class HCENFCUtils(private val context: Context) {
 
             // Check if data needs to be chunked
             if (dataBytes.size > MAX_APDU_DATA_SIZE) {
-                Log.d(TAG, "Data too large (${dataBytes.size} bytes), sending in chunks")
-                // For now, we'll truncate. In production, implement proper chunking
-                Log.w(TAG, "WARNING: Data truncated to $MAX_APDU_DATA_SIZE bytes")
+                Log.e(TAG, "Data too large (${dataBytes.size} bytes), have to send in chunks")
+                Log.e(TAG, "WARNING: Data truncated to $MAX_APDU_DATA_SIZE bytes")
             }
 
             val putDataCommand = createPutDataApdu(dataBytes)
-            Log.d(TAG, "PUT DATA APDU length: ${putDataCommand.size}")
 
             val putResponse = isoDep.transceive(putDataCommand)
-            Log.d(TAG, "PUT DATA response: ${byteArrayToHexString(putResponse)}")
 
             if (!isSuccessResponse(putResponse)) {
                 Log.e(TAG, "Failed to send data")
@@ -204,7 +193,6 @@ class HCENFCUtils(private val context: Context) {
             }
 
             Log.d(TAG, "Data sent successfully!")
-            Log.d(TAG, "=== SEND DATA TO HCE SUCCESS ===")
             onSuccess()
 
         } catch (e: IOException) {
@@ -232,7 +220,6 @@ class HCENFCUtils(private val context: Context) {
         onError: (String) -> Unit
     ) {
         Log.d(TAG, "=== RECEIVE DATA FROM HCE START ===")
-        Log.d(TAG, "Attempting to receive data from HCE")
 
         val isoDep = IsoDep.get(tag)
         if (isoDep == null) {
@@ -242,15 +229,13 @@ class HCENFCUtils(private val context: Context) {
         }
 
         try {
-            Log.d(TAG, "Connecting to IsoDep tag...")
             isoDep.connect()
-            Log.d(TAG, "Connected successfully")
-
-            // Step 1: Select application by AID
-            Log.d(TAG, "Step 1: Selecting application by AID")
+            Log.d(TAG, "Connected to IsoDep tag successfully")
+            Log.d(TAG, "Trying to select APDU command and transceive it")
+            // Select application by AID
             val selectCommand = createSelectAidApdu()
             val selectResponse = isoDep.transceive(selectCommand)
-            Log.d(TAG, "SELECT response: ${byteArrayToHexString(selectResponse)}")
+            Log.d(TAG, "Successfully transceived APDU command")
 
             if (!isSuccessResponse(selectResponse)) {
                 Log.e(TAG, "Failed to select application")
@@ -258,13 +243,10 @@ class HCENFCUtils(private val context: Context) {
                 return
             }
 
-            // Step 2: Get data using GET DATA command
-            Log.d(TAG, "Step 2: Getting data using GET DATA")
+            // Get data using GET DATA command
+            Log.d(TAG, "Getting data using GET DATA")
             val getDataCommand = createGetDataApdu()
-            Log.d(TAG, "GET DATA APDU: ${byteArrayToHexString(getDataCommand)}")
-
             val getResponse = isoDep.transceive(getDataCommand)
-            Log.d(TAG, "GET DATA response length: ${getResponse.size} bytes")
 
             // Check response status (last 2 bytes)
             if (getResponse.size < 2) {
@@ -283,10 +265,6 @@ class HCENFCUtils(private val context: Context) {
                 val jsonData = String(dataBytes, StandardCharsets.UTF_8)
 
                 Log.d(TAG, "Received data successfully")
-                Log.d(TAG, "Data length: ${jsonData.length} chars")
-                Log.d(TAG, "Data preview: ${jsonData.take(200)}...")
-                Log.d(TAG, "=== RECEIVE DATA FROM HCE SUCCESS ===")
-
                 onSuccess(jsonData)
             } else {
                 Log.e(TAG, "Error response from HCE")

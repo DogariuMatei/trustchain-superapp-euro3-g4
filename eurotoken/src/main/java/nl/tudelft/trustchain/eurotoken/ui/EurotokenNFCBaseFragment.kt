@@ -59,7 +59,6 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
         onResponseReceived: ((String) -> Unit)? = null
     ) {
         Log.d(TAG, "=== START HCE CARD EMULATION ===")
-        Log.d(TAG, "Data to send: ${jsonData.take(100)}...")
         Log.d(TAG, "Expect response: $expectResponse")
 
         currentOperation = HCEOperationType.CARD_EMULATION
@@ -127,45 +126,6 @@ abstract class EurotokenNFCBaseFragment(@LayoutRes contentLayoutId: Int = 0) : E
             },
             onError = { error ->
                 Log.e(TAG, "Reader mode error: $error")
-                dismissNFCDialog()
-                onNFCReadError(error)
-            }
-        ) ?: run {
-            Log.e(TAG, "HCE handler not available")
-            dismissNFCDialog()
-            Toast.makeText(requireContext(), "NFC not available", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * Send data and wait for response in reader mode
-     * Used for bidirectional communication
-     * Where THIS device initiates
-     */
-    protected fun sendDataAndWaitForResponse(
-        jsonData: String,
-        message: String = "Hold phones together to send and receive...",
-        timeoutSeconds: Int = 60,
-        onResponseReceived: (String) -> Unit
-    ) {
-        Log.d(TAG, "=== SEND DATA AND WAIT FOR RESPONSE ===")
-        Log.d(TAG, "Data to send: ${jsonData.take(100)}...")
-
-        currentOperation = HCEOperationType.SEND_AND_RECEIVE
-        showNFCDialog(message, timeoutSeconds)
-
-        getHCEHandler()?.sendDataAndReceiveResponse(
-            jsonData = jsonData,
-            onResponseReceived = { responseData ->
-                Log.d(TAG, "Received response: ${responseData.take(100)}...")
-                updateNFCDialogMessage("Transaction complete!")
-                Handler(Looper.getMainLooper()).postDelayed({
-                    dismissNFCDialog()
-                    onResponseReceived(responseData)
-                }, 1000)
-            },
-            onError = { error ->
-                Log.e(TAG, "Send and receive error: $error")
                 dismissNFCDialog()
                 onNFCReadError(error)
             }

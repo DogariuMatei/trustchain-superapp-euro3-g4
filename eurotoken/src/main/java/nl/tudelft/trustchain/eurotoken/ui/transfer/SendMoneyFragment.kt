@@ -23,7 +23,6 @@ import org.json.JSONObject
 import com.google.gson.Gson
 import nl.tudelft.trustchain.common.eurotoken.UTXO
 import nl.tudelft.trustchain.common.eurotoken.UTXOTransaction
-import nl.tudelft.trustchain.common.bloomFilter.BloomFilter
 import android.util.Base64
 import java.util.BitSet
 
@@ -64,7 +63,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         binding.btnContinue.setOnClickListener {
             if (isPhase1Complete) {
-                startPhase2Payment()
+                startPhase2()
             } else {
                 retryPhase1Transmission()
             }
@@ -167,7 +166,6 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         // IMPORTANT: Stop HCE card emulation and clear all data from Phase 1
         getHCEHandler()?.stopHCECardEmulation()
-
         updateUIAfterPhase1()
     }
 
@@ -180,7 +178,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
         binding.btnContinue.isEnabled = true
         binding.btnContinue.setOnClickListener {
             if (isPhase1Complete) {
-                startPhase2Payment()
+                startPhase2()
             } else {
                 retryPhase1Transmission()
             }
@@ -190,7 +188,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     /**
      * Start Phase 2 - Get receiver confirmation and send transaction
      */
-    private fun startPhase2Payment() {
+    private fun startPhase2() {
         Log.d(TAG, "=== START PHASE 2 PAYMENT ===")
 
         Toast.makeText(
@@ -199,7 +197,6 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             Toast.LENGTH_LONG
         ).show()
 
-        // In Phase 2, we first get receiver confirmation (which includes their public key)
         startHCEReaderMode(
             message = "Connecting to receiver...",
             timeoutSeconds = 60,
@@ -222,11 +219,6 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 receiverPublicKey = receiverData.optString("receiver_public_key")
                 val receiverBloomBitSet = BitSet.valueOf(Base64.decode(receiverData.getString("bloom_bitset"), Base64.DEFAULT))
 
-                if (receiverPublicKey.isNullOrEmpty()) {
-                    Toast.makeText(requireContext(), "Invalid receiver data", Toast.LENGTH_SHORT).show()
-                    return
-                }
-
                 Log.d(TAG, "Got receiver public key: ${receiverPublicKey?.take(20)}...")
                 Log.d(TAG, "Got receiver bloom bitset: ${receiverBloomBitSet?.toString()?.take(20)}")
                 updateNFCDialogMessage("Receiver confirmed, creating transaction...")
@@ -235,7 +227,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
                 // Give receiver time to switch to reader mode before sending payment
                 Handler(Looper.getMainLooper()).postDelayed({
-                    createAndSendTransaction()
+                    switchToPhase2SenderMode()
                 }, 2000)
             } else {
                 Toast.makeText(requireContext(), "Invalid receiver response", Toast.LENGTH_SHORT).show()
@@ -247,69 +239,40 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
     }
 
     /**
+     * Switch to sender mode to receive payment confirmation
+     */
+    private fun switchToPhase2SenderMode() {
+        Log.d(TAG, "Cleaning HCE service before sending Transaction")
+        HCEPaymentService.clearPendingTransactionData()
+        HCEPaymentService.clearOnDataReceivedCallback()
+        HCEPaymentService.clearOnDataTransmittedCallback()
+        createAndSendTransaction()
+    }
+
+    /**
      * Create and send transaction after receiving receiver confirmation
      */
     private fun createAndSendTransaction() {
         Log.d(TAG, "=== CREATE AND SEND TRANSACTION ===")
-
-        val receiverKey = receiverPublicKey
-        if (receiverKey.isNullOrEmpty()) {
-            Log.e(TAG, "No receiver public key available")
-            Toast.makeText(requireContext(), "Error: No receiver information", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        try {
-            // CRITICAL: Ensure HCE service is completely clean before setting new data
-            Log.d(TAG, "Cleaning HCE service before sending payment confirmation")
-            HCEPaymentService.clearPendingTransactionData()
-            HCEPaymentService.clearOnDataReceivedCallback()
-            HCEPaymentService.clearOnDataTransmittedCallback()
-
-            // Add a small delay to ensure cleanup is complete
-            Handler(Looper.getMainLooper()).postDelayed({
-                sendTransaction(receiverKey)
-            }, 300)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in createAndSendTransaction: ${e.message}", e)
-            Toast.makeText(requireContext(), "Transaction failed: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    /**
-     * Send actual transaction
-     */
-    private fun sendTransaction(receiverKey: String) {
         try {
             // Create actual blockchain transaction
             val utxoTransaction = utxoService.buildUtxoTransactionSync(
-                receiverKey.hexToBytes(),
+                receiverPublicKey!!.hexToBytes(),
                 amount,
                 pairOfInputUtxosAndSum.first,
                 pairOfInputUtxosAndSum.second
             )
-            if (utxoTransaction == null) {
-                Log.e(TAG, "Failed to create utxo transaction")
-                Toast.makeText(
-                    requireContext(),
-                    "Failed to create utxo transaction",
-                    Toast.LENGTH_LONG
-                ).show()
-                return
-            }
 
-            // Create payment confirmation
+            // Create transaction json obj
             val myPeer = utxoService.trustChainCommunity.myPeer
             val senderContact = ContactStore.getInstance(requireContext()).getContactFromPublicKey(myPeer.publicKey)
 
             val gson = Gson()
-            val utxoTransactionJson = gson.toJson(utxoTransaction)
             val paymentConfirmation = JSONObject()
             paymentConfirmation.put("type", "payment_confirmation")
             paymentConfirmation.put("sender_public_key", myPeer.publicKey.keyToBin().toHex())
             paymentConfirmation.put("sender_name", senderContact?.name ?: "")
-            paymentConfirmation.put("recipient_public_key", receiverKey)
+            paymentConfirmation.put("recipient_public_key", receiverPublicKey)
             paymentConfirmation.put("amount", amount)
             paymentConfirmation.put("timestamp", System.currentTimeMillis())
             /*paymentConfirmation.put("block_hash", transactionBlock.calculateHash().toHex())
@@ -317,12 +280,12 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             paymentConfirmation.put("block_timestamp", transactionBlock.timestamp.time)*/
 
             // Include actual Utxo transaction data
-            paymentConfirmation.put("utxo_transaction", JSONObject(utxoTransactionJson))
+            paymentConfirmation.put("utxo_transaction", gson.toJson(utxoTransaction))
 
             val paymentData = paymentConfirmation.toString()
-            Log.d(TAG, "Created transaction block, sending payment confirmation")
-            Log.d(TAG, "Payment confirmation data length: ${paymentData.length}")
-            Log.d(TAG, "Payment confirmation preview: ${paymentData.take(150)}...")
+            Log.d(TAG, "Created transaction block, sending it")
+            Log.d(TAG, "Transaction payload data length: ${paymentData.length}")
+            Log.d(TAG, "Transaction payload: $paymentData")
 
             // Send payment confirmation via HCE card emulation
             startHCECardEmulation(
@@ -331,13 +294,9 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
                 timeoutSeconds = 30,
                 expectResponse = false,
                 onDataTransmitted = {
-                    Log.d(TAG, "Phase 2: Payment confirmation sent successfully")
+                    Log.d(TAG, "Phase 2: Transaction sent successfully")
                     updateNFCDialogMessage("Payment sent successfully!")
-
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        dismissNFCDialog()
-                        completeTransaction(utxoTransaction)
-                    }, 1500)
+                    completeTransaction(utxoTransaction!!)
                 }
             )
 
@@ -346,6 +305,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             Toast.makeText(requireContext(), "Transaction failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
+
 
     /**
      * Complete transaction and navigate to transaction history
@@ -362,7 +322,8 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             Toast.LENGTH_LONG
         ).show()
 
-        Log.d(TAG, "Navigating to transaction history")
+        // TODO maybe add this back
+        // dismissNFCDialog()
 
         // Store transaction and add spent UTXOs to BloomFilter
         val success = utxoService.addUTXOTransaction(utxoTransaction)
@@ -370,7 +331,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
             Log.e(TAG, "Failed to add transaction")
             Toast.makeText(requireContext(), "Failed to add transaction", Toast.LENGTH_LONG).show()
         } else {
-            Log.e(TAG, "Transaction added successfully")
+            Log.d(TAG, "Transaction added to db successfully")
             Toast.makeText(requireContext(), "Transaction added successfully", Toast.LENGTH_LONG).show()
         }
 

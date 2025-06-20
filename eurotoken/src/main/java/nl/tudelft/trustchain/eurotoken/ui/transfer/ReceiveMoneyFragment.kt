@@ -248,7 +248,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
      * Proceed with transaction - save contact and start Phase 2 directly
      */
     private fun proceedWithTransaction() {
-        Log.d(TAG, "=== PROCEED WITH TRANSACTION ===")
+        Log.d(TAG, "=== PROCEED WITH PHASE 2 ===")
 
         // Add contact if requested
         val newName = binding.newContactName.text.toString()
@@ -259,14 +259,14 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         }
 
         // Start Phase 2 receiver mode immediately
-        startPhase2Receive()
+        startPhase2()
     }
 
     /**
      * Start Phase 2 - Send receiver confirmation then wait for payment
      */
-    private fun startPhase2Receive() {
-        Log.d(TAG, "=== START PHASE 2 RECEIVE ===")
+    private fun startPhase2() {
+        Log.d(TAG, "=== START PHASE 2 SENDING CONFIRMATION AS RECEIVER ===")
 
         // Clear any lingering HCE data from Phase 1
         HCEPaymentService.clearPendingTransactionData()
@@ -288,7 +288,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
             Toast.LENGTH_LONG
         ).show()
 
-        // First send receiver confirmation via card emulation
+        // First send confirmation via card emulation
         startHCECardEmulation(
             jsonData = receiverConfirmation.toString(),
             message = "Confirming with sender...",
@@ -302,7 +302,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 // and switch to card emulation mode
                 Handler(Looper.getMainLooper()).postDelayed({
                     switchToPaymentReceiveMode()
-                }, 3000)
+                }, 4000)
             }
         )
     }
@@ -333,8 +333,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
      * Handle payment confirmation from sender
      */
     private fun handleIncomingTransaction(jsonData: String) {
-        Log.d(TAG, "=== HANDLE PAYMENT CONFIRMATION ===")
-
+        Log.d(TAG, "=== VERIFY TRANSACTION COMMITMENT ===")
         try {
             val transactionData = JSONObject(jsonData)
             val dataType = transactionData.optString("type")
@@ -343,8 +342,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
                 val gson = Gson()
                 val senderPublicKey = transactionData.optString("sender_public_key")
                 val amount = transactionData.optLong("amount", -1L)
-                val utxoTransactionJson = transactionData.getJSONObject("utxo_transaction").toString()
-                val utxoTransaction = gson.fromJson(utxoTransactionJson, UTXOTransaction::class.java)
+                val utxoTransaction = gson.fromJson(transactionData.optString("utxo_transaction"), UTXOTransaction::class.java)
 
                 // Validate incoming data matches the commited values
                 if (senderPublicKey == senderInfo.senderPublicKey &&
@@ -380,8 +378,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         val sequenceNumber = paymentConfirmation.optLong("sequence_number", -1L)
         val blockTimestamp = paymentConfirmation.optLong("block_timestamp", -1L)*/
 
-        val utxoTransactionJson = paymentConfirmation.getJSONObject("utxo_transaction").toString()
-        val utxoTransaction = gson.fromJson(utxoTransactionJson, UTXOTransaction::class.java)
+        val utxoTransaction = gson.fromJson(paymentConfirmation.optString("utxo_transaction"), UTXOTransaction::class.java)
 
         // Process the offline transaction
         processOfflineTransaction(
@@ -394,6 +391,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
         // Update UI and navigate
         updateNFCDialogMessage("Payment received!")
 
+        // TODO maybe remove this
         Handler(Looper.getMainLooper()).postDelayed({
             dismissNFCDialog()
             completeTransaction(senderName, amount)
