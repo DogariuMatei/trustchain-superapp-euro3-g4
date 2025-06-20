@@ -63,6 +63,12 @@
         <argument
             android:name="name"
             app:argType="string" />
+        <action
+            android:id="@+id/action_sendMoneyFragment_to_utxoTransactionsFragment"
+            app:destination="@id/utxoTransactionsFragment" />
+        <argument
+            android:name="data"
+            app:argType="string" />
     </fragment>
     <fragment
         android:id="@+id/receiveMoneyFragment"
@@ -71,6 +77,12 @@
         <action
             android:id="@+id/action_receiveMoneyFragment_to_transactionsFragment"
             app:destination="@id/transactionsFragment" />
+        <argument
+            android:name="data"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_receiveMoneyFragment_to_utxoTransactionsFragment"
+            app:destination="@id/utxoTransactionsFragment" />
         <argument
             android:name="data"
             app:argType="string" />

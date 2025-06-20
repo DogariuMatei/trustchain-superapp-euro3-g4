@@ -86,6 +86,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         // commit to specific UTXOs
         pairOfInputUtxosAndSum = utxoService.commitUtxoInputs(amount)!!
+
         val gson = Gson()
 
         val senderInfo = JSONObject()
@@ -337,7 +338,7 @@ class SendMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_send_money)
 
         // Navigate to transaction history
         try {
-            findNavController().navigate(R.id.action_sendMoneyFragment_to_transactionsFragment)
+            findNavController().navigate(R.id.action_sendMoneyFragment_to_utxoTransactionsFragment)
             Log.d(TAG, "Successfully navigated to transactions fragment")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to navigate: ${e.message}")

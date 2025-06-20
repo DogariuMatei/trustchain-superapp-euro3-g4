@@ -474,7 +474,7 @@ class ReceiveMoneyFragment : EurotokenNFCBaseFragment(R.layout.fragment_receive_
 
         // Navigate to transaction history
         try {
-            findNavController().navigate(R.id.action_receiveMoneyFragment_to_transactionsFragment)
+            findNavController().navigate(R.id.action_receiveMoneyFragment_to_utxoTransactionsFragment)
             Log.d(TAG, "Successfully navigated to transactions fragment")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to navigate: ${e.message}")
