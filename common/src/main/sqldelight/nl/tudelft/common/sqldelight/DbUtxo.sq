@@ -21,7 +21,7 @@ getAllUtxos:
 SELECT * FROM UTXO;
 
 getUtxosById:
-SELECT * FROM UTXO WHERE txId = ?;
+SELECT * FROM UTXO WHERE txId = ? OR spentInTxId = ?;
 
 addUtxo:
 INSERT INTO UTXO (txId, txIndex, amount, owner, spentInTxId)

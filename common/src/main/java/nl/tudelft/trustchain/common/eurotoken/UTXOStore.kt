@@ -54,7 +54,7 @@ open class UTXOStore(val database: Database) {
     }
 
     fun getUtxosById(txId: String): List<UTXO> {
-        return database.dbUtxoQueries.getUtxosById(txId.hexToBytes(), utxoMapper).executeAsList()
+        return database.dbUtxoQueries.getUtxosById(txId.hexToBytes(), txId.hexToBytes(), utxoMapper).executeAsList()
     }
 
     fun getUtxo(txId: String, txIndex: Int): UTXO? {
