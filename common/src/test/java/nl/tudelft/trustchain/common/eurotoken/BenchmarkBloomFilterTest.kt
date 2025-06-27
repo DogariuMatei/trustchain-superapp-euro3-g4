@@ -10,7 +10,7 @@ import org.junit.Test
 import java.security.SecureRandom
 
 class BenchmarkBloomFilterTest {
-//    @Ignore("Benchmark")
+    @Ignore("Benchmark")
     @Test
     fun `benchmark bloom filter`() {
         val lastedRounds: MutableList<Int> = mutableListOf()

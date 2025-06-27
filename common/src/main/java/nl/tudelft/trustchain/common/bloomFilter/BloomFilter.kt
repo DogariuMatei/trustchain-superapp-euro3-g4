@@ -4,6 +4,7 @@ import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 import java.util.BitSet
 import kotlin.math.*
+import java.nio.ByteBuffer
 
 class BloomFilter {
     private val hashFunctionCount: Int
@@ -11,8 +12,7 @@ class BloomFilter {
     private val bitset: BitSet
     val getBitset: BitSet
         get() = bitset
-    private val primaryHash: HashFunction
-    private val secondaryHash: HashFunction
+    private val hashFunction: HashFunction
 
     constructor(capacity: Int): this(capacity, 0.01f)
 
@@ -21,8 +21,7 @@ class BloomFilter {
 
     private constructor(m: Int, k: Int) {
         // Initialize Guava hash functions
-        this.primaryHash = Hashing.sipHash24()
-        this.secondaryHash = Hashing.murmur3_32()
+        this.hashFunction = Hashing.murmur3_128()
         this.hashFunctionCount = k
         this.bitsetSize = m
         this.bitset = BitSet(m)
@@ -32,8 +31,9 @@ class BloomFilter {
      * Adds an item to the Bloom filter.
      */
     fun add(item: ByteArray) {
-        val primaryHash = primaryHash.hashBytes(item).asLong().toULong()
-        val secondaryHash = secondaryHash.hashBytes(item).asInt().toULong() and 0xFFFFFFFFu
+        val hash = hashFunction.hashBytes(item).asBytes()
+        val primaryHash = ByteBuffer.wrap(hash.copyOfRange(0, 8)).long.toULong()
+        val secondaryHash = ByteBuffer.wrap(hash.copyOfRange(8, 16)).long.toULong()
         for (i in 1..hashFunctionCount) {
             val idx = computeHash(primaryHash, secondaryHash, i)
             bitset.set(idx)
@@ -44,8 +44,9 @@ class BloomFilter {
      * Checks whether an item might be in the Bloom filter.
      */
     fun contains(item: ByteArray): Boolean {
-        val primaryHash = primaryHash.hashBytes(item).asLong().toULong()
-        val secondaryHash = secondaryHash.hashBytes(item).asInt().toULong() and 0xFFFFFFFFu
+        val hash = hashFunction.hashBytes(item).asBytes()
+        val primaryHash = ByteBuffer.wrap(hash.copyOfRange(0, 8)).long.toULong()
+        val secondaryHash = ByteBuffer.wrap(hash.copyOfRange(8, 16)).long.toULong()
         for (i in 1..hashFunctionCount) {
             val idx = computeHash(primaryHash, secondaryHash, i)
             if (!bitset.get(idx)) return false

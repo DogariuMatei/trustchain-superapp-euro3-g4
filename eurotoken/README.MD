@@ -86,7 +86,7 @@ https://github.com/user-attachments/assets/6ba00af3-e0ba-49e6-a978-95b6d2731c72
 
 ### Bloom Filter Double-Spending
 
-* BloomFilter (`BloomFilter.kt`): Probabilistic data structure using dual hashing (SipHash24 + Murmur3) to efficiently track spent UTXOs and prevent double-spending attacks
+* BloomFilter (`BloomFilter.kt`): Probabilistic data structure using dual hashing (2x Murmur3) to efficiently track spent UTXOs and prevent double-spending attacks
 
 ### NFC Communication Infrastructure
 
