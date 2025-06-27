@@ -155,7 +155,7 @@ https://github.com/user-attachments/assets/6ba00af3-e0ba-49e6-a978-95b6d2731c72
     * All communication till now was Sender → Receiver so Sender does not have PK of Receiver
 
 2. Mode Transition (`ReceiveMoneyFragment.switchToPaymentReceiveMode()`):
-    * Add 3-second delay to wait for Sender processing
+    * Add 3-second delay to wait for Sender processing (**IMPORTANT**: longer delay to ensure sender has time to process confirmation and switch to card emulation mode)
     * Switches from card emulation to reader mode
     * Prepares to receive actual payment transaction
 
@@ -197,3 +197,8 @@ https://github.com/user-attachments/assets/6ba00af3-e0ba-49e6-a978-95b6d2731c72
     * Marks input UTXOs as spent in database
     * Adds new output UTXOs for recipient and change
     * Has retry mechanism with transaction rollback on failure
+
+### Limitations
+* **Emulators do not support NFC HCE**: This flow **cannot be tested on emulators**, only on real devices with NFC.
+* **Race conditions**: If either party doesn’t switch modes promptly, NFC fails
+* **Device-specific quirks**: Some Android devices aggressively manage NFC/foreground dispatch, which can interrupt flow
