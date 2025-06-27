@@ -23,6 +23,12 @@
 * Receiver processes transaction locally and updates balance
 * Receiver adds spent UTXOs to bloom filter to prevent future double-spending
 
+![system](https://github.com/user-attachments/assets/69929589-015d-46a3-b11a-a5510ce65d6c)
+
+https://github.com/user-attachments/assets/300c09fb-7143-426e-a4a0-55804dbb3f80
+
+https://github.com/user-attachments/assets/6ba00af3-e0ba-49e6-a978-95b6d2731c72
+
 # Added Components:
 
 ### UTXO Management System
